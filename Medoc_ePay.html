@@ -1,0 +1,2264 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEDOC PREPA Cloud Student Management & Ledger System</title>
+    <!-- Tailwind CSS for Modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .font-mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        @media print {
+            body * { visibility: hidden; }
+            #receiptModal, #receiptModal * { visibility: visible; }
+            #receiptModal { position: absolute; left: 0; top: 0; width: 100%; box-shadow: none; padding: 0; }
+            .no-print { display: none !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 flex flex-col min-h-screen">
+
+    <!-- Global Network Sync Notification Spinner -->
+    <div id="syncIndicator" class="fixed bottom-4 right-4 bg-gray-900 text-white text-xs px-3.5 py-2.5 rounded-full shadow-2xl flex items-center space-x-2.5 z-50 hidden transition-all duration-300 transform">
+        <svg class="animate-spin h-4 w-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span id="syncText" class="font-medium tracking-wide">Syncing data with cloud...</span>
+    </div>
+
+    <!-- Custom Animated Toast System -->
+    <div id="toastContainer" class="fixed bottom-20 right-4 flex flex-col gap-2 z-50"></div>
+
+    <!-- SECURE AUTHORIZED STAFF LOGIN PAGE -->
+    <div id="loginScreen" class="fixed inset-0 bg-blue-900/40 backdrop-blur-md flex items-center justify-center p-4 z-[100] transition-all duration-500">
+        <div class="bg-white w-full max-w-md rounded-2xl p-6 sm:p-8 shadow-2xl border border-gray-100 flex flex-col items-center space-y-6 transform transition-all duration-500 scale-100">
+            
+            <div class="text-center space-y-2">
+                <div class="h-16 w-16 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-center text-4xl mx-auto shadow-sm">
+                    🏫
+                </div>
+                <h2 class="text-xl font-extrabold tracking-tight text-gray-900">Medoc ePay Portal</h2>
+                <p class="text-xs text-gray-500 font-medium">Authorized Personnel Workspace Authentication</p>
+            </div>
+
+            <!-- Login Error Alert Banner -->
+            <div id="loginError" class="w-full hidden bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold p-3.5 rounded-xl flex items-start gap-2.5">
+                <span>⚠️</span>
+                <span id="loginErrorText" class="leading-relaxed">Incorrect username or password.</span>
+            </div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="w-full space-y-4">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Username / Email</label>
+                    <input type="text" id="loginUsername" required placeholder="e.g. medoc.staff" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Password</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition text-sm">
+                </div>
+
+                <button id="loginSubmitBtn" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer text-sm">
+                    <span>🔑</span> Validate Credentials
+                </button>
+            </form>
+
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200/60 text-[11px] text-gray-500 leading-relaxed text-center w-full">
+                💡 <strong>Administrator Notice:</strong> Staff accounts are managed directly inside your linked Google Sheet's <strong>"Staff"</strong> tab. Changing passwords or registering new employee details there updates access globally across all devices instantly!
+            </div>
+        </div>
+    </div>
+
+    <!-- PORTAL MAIN INTERFACE CONTAINER (Initially hidden until authenticated) -->
+    <div id="portalMain" class="hidden flex-col min-h-screen">
+        
+        <!-- Navigation Header -->
+        <header class="bg-blue-700 text-white shadow-lg no-print">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col lg:flex-row justify-between items-center gap-4">
+                <div class="flex flex-col sm:flex-row items-center gap-3">
+                    <h1 class="text-xl font-extrabold tracking-tight flex items-center gap-2">
+                        <span class="text-2xl">🏫</span> Medoc ePay Portal
+                        <span class="text-xs bg-blue-900 text-blue-200 py-0.5 px-2.5 rounded-full font-medium border border-blue-600">v2.8</span>
+                    </h1>
+                    <!-- Dynamic Year Selector Badge -->
+                    <div class="flex items-center space-x-1.5 bg-blue-800/80 border border-blue-600 py-1 px-2.5 rounded-xl text-xs">
+                        <span class="text-blue-200 font-bold">Session:</span>
+                        <select id="headerActiveYear" onchange="changeActiveAcademicYear(this.value)" class="bg-transparent border-none text-white font-extrabold focus:outline-none cursor-pointer focus:ring-0 p-0 text-xs">
+                            <option value="2025/2026" class="text-gray-900 font-semibold">2025/2026</option>
+                            <option value="2026/2027" class="text-gray-900 font-semibold" selected>2026/2027</option>
+                            <option value="2027/2028" class="text-gray-900 font-semibold">2027/2028</option>
+                            <option value="2028/2029" class="text-gray-900 font-semibold">2028/2029</option>
+                            <option value="2029/2030" class="text-gray-900 font-semibold">2029/2030</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex flex-wrap items-center gap-4">
+                    <!-- Session Staff Badge & Logout Control -->
+                    <div class="flex items-center space-x-2 bg-blue-800/60 border border-blue-600 py-1.5 px-3 rounded-xl">
+                        <span class="text-xs font-bold text-blue-200 flex items-center gap-1.5">
+                            <span class="h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            🟢 <span id="currentStaffName">Staff Profile</span>
+                        </span>
+                        <button onclick="handleLogout()" class="text-xs font-bold text-rose-300 hover:text-rose-100 transition pl-1 border-l border-blue-600/60 cursor-pointer">
+                            Logout
+                        </button>
+                    </div>
+
+                    <div class="flex items-center space-x-2 bg-blue-800 p-1 rounded-xl">
+                        <button onclick="switchTab('register')" id="tab-register" class="px-4 py-2 rounded-lg font-semibold bg-white text-blue-700 transition duration-200 shadow-sm text-sm">Register Student</button>
+                        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="px-4 py-2 rounded-lg font-semibold hover:bg-blue-600/50 text-white transition duration-200 text-sm">Financial Ledger</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-6 flex-grow w-full">
+            
+            <!-- Logo Setup Banner -->
+            <div class="no-print bg-white p-4 rounded-2xl shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-4 border border-yellow-200 border-l-4 border-l-yellow-500">
+                <div class="space-y-1">
+                    <h3 class="font-bold text-gray-800 text-sm flex items-center gap-1.5">
+                        <span>🖼️</span> App Setup: Institutional Branding
+                    </h3>
+                    <p class="text-xs text-gray-500">Upload your school logo once. It resides safely in this browser session memory and will print directly onto vouchers and receipts.</p>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div id="previewLogoContainer" class="hidden h-12 w-12 bg-gray-50 rounded-xl border flex items-center justify-center overflow-hidden shadow-inner">
+                        <img id="previewLogo" src="" alt="School Logo" class="max-h-full max-w-full object-contain">
+                    </div>
+                    <label class="cursor-pointer bg-white hover:bg-gray-50 text-gray-700 font-semibold py-2 px-4 rounded-xl border text-xs transition shadow-sm select-none">
+                        📁 Choose Logo Image
+                        <input type="file" id="logoUpload" accept="image/*" onchange="handleLogoUpload(event)" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Interactive Sandbox Mode Banner -->
+            <div id="sandboxBanner" class="hidden no-print bg-amber-50 border border-amber-200 border-l-4 border-l-amber-500 p-4 rounded-2xl shadow-sm mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">⚡</span>
+                    <div>
+                        <h4 class="font-bold text-amber-950 text-sm">Local Sandbox Mode Active</h4>
+                        <p class="text-xs text-amber-700 leading-relaxed">Your CLOUD_URL is not fully mapped. All updates are simulated locally in memory. Feel free to register entries, add concours files, test ledger updates, and print slips!</p>
+                    </div>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="clearDemoData()" class="bg-red-100 hover:bg-red-200 text-red-700 font-bold py-2 px-4 rounded-xl text-xs transition shadow-sm whitespace-nowrap border border-red-200">
+                        🗑️ Clear Demos
+                    </button>
+                    <button onclick="loadMockStudent()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-md whitespace-nowrap">
+                        ⚡ Autofill Demo Student
+                    </button>
+                </div>
+            </div>
+            
+            <!-- ================= REGISTRATION TAB ================= -->
+            <section id="view-register" class="no-print">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-4 border-b border-gray-100">
+                            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                <span>📝</span> Student Registration Form
+                            </h2>
+                            <button type="button" onclick="loadMockStudent()" class="bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold py-2 px-4 rounded-xl border border-amber-200 transition duration-200 flex items-center gap-1.5 shadow-sm">
+                                ⚡ Autofill Demo Student
+                            </button>
+                        </div>
+                        <form id="regForm" onsubmit="handleRegistration(event)" class="space-y-6">
+                            <input type="hidden" id="isDemoStudent" value="false">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Full Name *</label>
+                                    <input type="text" id="studentName" required class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Phone Number *</label>
+                                    <input type="text" id="studentPhone" required class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-semibold uppercase tracking-wider text-gray-500 mb-1.5">Location of Residence (Quarter) *</label>
+                                    <input type="text" id="studentLocation" required placeholder="e.g. Bonamoussadi, Molyko, Bastos" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition text-sm">
+                                </div>
+                            </div>
+                            
+                            <!-- Campaign and scholarship options -->
+                            <div class="bg-purple-50/75 p-4 rounded-2xl border border-purple-100 space-y-3">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-purple-900">Campaign / Waiver Settings (Outstanding & Olympiads)</label>
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-[10px] font-bold text-purple-700 uppercase mb-1">Select Program Waiver Scheme</label>
+                                        <select id="specialCampaign" onchange="applyCampaignPricing()" class="w-full px-3 py-2 border border-purple-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 text-xs font-semibold text-purple-950">
+                                            <option value="Standard">Standard Registration (No Waivers)</option>
+                                            <option value="Olympiad Outstanding">🏆 Olympiad Outstanding (All Textbooks & extra Workbooks 100% Free)</option>
+                                            <option value="Opening Activity Promo">🎉 Opening Activity Promo (10,000 F CFA Discount on Tuition)</option>
+                                            <option value="Full Scholarship">🎓 Full Scholarship (Free Tuition, Free Textbooks & Workbooks)</option>
+                                            <option value="Custom Discount">⚙️ Custom Manual Waiver Discount (Configure below)</option>
+                                        </select>
+                                    </div>
+                                    <div id="customDiscountArea" class="hidden">
+                                        <label class="block text-[10px] font-bold text-purple-700 uppercase mb-1">Manual Tuition Deduction Amount (F CFA)</label>
+                                        <input type="number" id="customDiscountVal" value="0" min="0" oninput="calculateLiveTotal()" class="w-full px-3 py-2 border border-purple-200 rounded-xl bg-white font-mono font-bold text-purple-950 text-xs focus:ring-2 focus:ring-purple-500/20">
+                                    </div>
+                                </div>
+                                <p id="campaignIndicatorText" class="text-[11px] text-purple-800 font-semibold italic mt-1">✓ Normal standard tuition rate applied.</p>
+                            </div>
+                            <div class="bg-gray-50/70 p-4 rounded-2xl border border-gray-100 space-y-3">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Department Tracks</label>
+                                <div class="flex flex-col sm:flex-row gap-4">
+                                    <label class="flex items-center space-x-2.5 cursor-pointer bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm flex-1 select-none">
+                                        <input type="radio" name="primaryDept" value="Health Sciences" checked onchange="updateFormContext()" class="h-4 w-4 text-blue-600 focus:ring-blue-500/20">
+                                        <span class="text-sm font-medium">Health Sciences</span>
+                                    </label>
+                                    <label class="flex items-center space-x-2.5 cursor-pointer bg-white px-4 py-2.5 rounded-xl border border-gray-200 shadow-sm flex-1 select-none">
+                                        <input type="radio" name="primaryDept" value="Engineering" onchange="updateFormContext()" class="h-4 w-4 text-blue-600 focus:ring-blue-500/20">
+                                        <span class="text-sm font-medium">Engineering</span>
+                                    </label>
+                                </div>
+                                <label class="flex items-center space-x-2.5 mt-2 pt-2 border-t border-gray-200/60 cursor-pointer select-none">
+                                    <input type="checkbox" id="dualEnrollment" onchange="updateFormContext()" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500/20">
+                                    <span class="text-xs font-semibold text-purple-700 uppercase tracking-wide">Enrolling in both Departments? (Zero duplicate registration charges)</span>
+                                </label>
+                            </div>
+                            <div class="space-y-1.5">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Primary Free Workbook (Included in Registration)</label>
+                                <select id="primaryWorkbook" class="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition text-sm"></select>
+                                <p class="text-[11px] text-green-600 font-semibold flex items-center gap-1 mt-1">✓ Included for free with registration</p>
+                            </div>
+                            <div class="border-t border-gray-100 pt-4 space-y-3">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Optional Textbook Add-ons</label>
+                                <div class="space-y-3">
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border border-gray-100 rounded-xl bg-white shadow-sm">
+                                        <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+                                            <input type="checkbox" id="bookMed" onchange="updateFormContext()" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500/20">
+                                            <span class="text-sm font-semibold">Medical School Secrets Textbook</span>
+                                        </label>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Price (FCFA):</span>
+                                            <input type="number" id="priceMed" value="5000" min="5000" max="10000" step="500" oninput="updateFormContext()" class="w-28 px-3 py-1 border border-gray-200 rounded-lg text-right font-mono font-semibold text-sm">
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 border border-gray-100 rounded-xl bg-white shadow-sm">
+                                        <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+                                            <input type="checkbox" id="bookEng" onchange="updateFormContext()" class="h-4 w-4 rounded text-blue-600 focus:ring-blue-500/20">
+                                            <span class="text-sm font-semibold">Engineering Textbook</span>
+                                        </label>
+                                        <div class="flex items-center space-x-2">
+                                            <span class="text-xs text-gray-400 uppercase font-bold tracking-wider">Price (FCFA):</span>
+                                            <input type="number" id="priceEng" value="5000" min="5000" max="10000" step="500" oninput="updateFormContext()" class="w-28 px-3 py-1 border border-gray-200 rounded-lg text-right font-mono font-semibold text-sm">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border-t border-gray-100 pt-4 space-y-2">
+                                <label class="block text-xs font-bold uppercase tracking-wider text-gray-600">Extra Workbook Purchases <span class="text-xs font-normal text-red-500 lowercase">(+5,000 F CFA each)</span></label>
+                                <div id="extraWorkbooksContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+                            </div>
+                            <div class="border-t border-gray-100 pt-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100 space-y-4">
+                                <h3 class="font-bold text-blue-900 text-xs tracking-wider uppercase">Payment Collection Terms</h3>
+                                <div class="grid grid-cols-1 gap-4">
+                                    <div>
+                                        <label class="block text-[11px] font-bold uppercase tracking-wider text-blue-800 mb-1.5">Payment Channel *</label>
+                                        <select id="paymentMode" class="w-full px-4 py-2.5 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-sm font-semibold text-blue-950">
+                                            <option value="Cash">💵 Cash</option>
+                                            <option value="Mobile Money">📱 Mobile Money (MOMO/OM)</option>
+                                            <option value="Bank Transfer">🏦 Bank Transfer</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="space-y-3 mt-2">
+                                        <label class="block text-[11px] font-bold uppercase tracking-wider text-blue-800 mb-1.5">Tick Payment Allocation (What is the student paying for right now?) *</label>
+                                        <div id="paymentAllocationContainer" class="space-y-2 bg-white p-3 rounded-xl border border-blue-100 shadow-sm">
+                                            <label class="flex items-center justify-between cursor-not-allowed select-none opacity-80 py-1">
+                                                <div class="flex items-center space-x-2.5">
+                                                    <input type="checkbox" checked disabled class="h-4 w-4 text-blue-600 rounded">
+                                                    <span class="text-xs font-semibold text-gray-700">Registration Fee (Mandatory)</span>
+                                                </div>
+                                                <span class="text-xs font-mono text-gray-500">5,000 F</span>
+                                            </label>
+                                            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-t border-gray-100">
+                                                <label class="flex items-center space-x-2.5 cursor-pointer select-none">
+                                                    <input type="checkbox" id="allocTuitionCheck" onchange="toggleTuitionAlloc()" class="h-4 w-4 text-blue-600 rounded focus:ring-blue-500/20">
+                                                    <span class="text-xs font-semibold text-gray-700">Tuition Installment</span>
+                                                </label>
+                                                <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+                                                    <span class="text-[10px] text-gray-400 font-bold uppercase">Advance Amount:</span>
+                                                    <input type="number" id="allocTuitionAmt" disabled placeholder="0" min="500" step="500" oninput="updateTotalPaid()" class="w-24 px-2 py-1 text-xs border border-gray-200 rounded-md bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 font-mono text-right font-bold text-gray-900 transition-colors">
+                                                </div>
+                                            </div>
+                                            <div id="allocBooksContainer" class="space-y-2 mt-1 border-t border-gray-100 pt-2 hidden"></div>
+                                        </div>
+                                        <div class="flex justify-between items-center bg-blue-100/50 p-4 rounded-xl border border-blue-200 mt-2">
+                                            <span class="text-xs font-bold text-blue-900 uppercase tracking-wider">Total Computed Today:</span>
+                                            <span id="computedTotalPaid" class="font-mono font-black text-blue-900 text-xl tracking-tight">5,000 F</span>
+                                            <input type="hidden" id="amountPaidToday" value="5000">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <button id="submitBtn" type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 tracking-wide text-sm flex items-center justify-center gap-2 cursor-pointer disabled:bg-gray-400">
+                                🚀 Register Student & Generate Receipt
+                            </button>
+                        </form>
+                    </div>
+                    <div class="bg-gray-900 text-white rounded-2xl shadow-xl p-6 h-fit lg:sticky lg:top-6 border border-gray-800 space-y-6">
+                        <h2 class="text-base font-bold text-gray-300 border-b border-gray-800 pb-3 flex items-center gap-2">
+                            <span>📊</span> Live Fee Summary
+                        </h2>
+                        <div class="space-y-4 text-xs font-medium">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Registration Fee:</span>
+                                <span id="liveReg" class="font-mono text-gray-200">0 F CFA</span>
+                            </div>
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400">Tuition Fee <span id="liveTuitionLabel" class="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2 py-0.5 rounded-md ml-1 font-semibold"></span>:</span>
+                                <span id="liveTuition" class="font-mono text-gray-200">0 F CFA</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Textbooks Total:</span>
+                                <span id="liveTextbooks" class="font-mono text-gray-200">0 F CFA</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Extra Workbooks:</span>
+                                <span id="liveWorkbooks" class="font-mono text-gray-200">0 F CFA</span>
+                            </div>
+                            <div class="border-t border-gray-800 pt-4 flex justify-between items-baseline">
+                                <span class="text-sm font-bold text-yellow-400">Total Bill Amount:</span>
+                                <span id="liveTotal" class="text-2xl font-black font-mono text-yellow-400">0 F CFA</span>
+                            </div>
+                            <div class="border-t border-dashed border-gray-800 pt-4 space-y-2 bg-gray-950/40 p-3 rounded-xl transition-all" id="paymentTrackerArea">
+                                <div class="flex justify-between text-emerald-400 text-xs font-bold">
+                                    <span>Paying Today:</span>
+                                    <span id="livePayingToday" class="font-mono">0 F CFA</span>
+                                </div>
+                                <div class="flex justify-between text-rose-400 text-xs font-bold">
+                                    <span>Remaining Debt:</span>
+                                    <span id="liveRemainingDebt" class="font-mono">0 F CFA</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800/60 p-4 rounded-xl border border-gray-800 text-xs text-gray-400 space-y-2">
+                            <p id="earlyBirdStatus" class="font-bold text-emerald-400 font-mono">Loading tracking metrics...</p>
+                            <p class="leading-relaxed font-normal">• Registrations and ledger card values write directly to cloud spreadsheets.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ================= DASHBOARD TAB ================= -->
+            <section id="view-dashboard" class="hidden no-print space-y-6">
+                <!-- Statistics KPI Grid -->
+                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-blue-600">
+                        <p class="text-[10px] text-gray-400 uppercase font-extrabold tracking-wider">Total Projected</p>
+                        <p id="kpiTotal" class="text-lg sm:text-xl font-black font-mono mt-1 text-blue-700">0 F</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-emerald-600">
+                        <p class="text-[10px] text-gray-400 uppercase font-extrabold tracking-wider">Collected Income</p>
+                        <p id="kpiCollected" class="text-lg sm:text-xl font-black font-mono mt-1 text-emerald-600">0 F</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-rose-500">
+                        <p class="text-[10px] text-gray-400 uppercase font-extrabold tracking-wider">Unpaid Balance</p>
+                        <p id="kpiOutstanding" class="text-lg sm:text-xl font-black font-mono mt-1 text-rose-500">0 F</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-amber-600">
+                        <p class="text-[10px] text-gray-400 uppercase font-extrabold tracking-wider">Book Inventories</p>
+                        <p id="kpiBooks" class="text-lg sm:text-xl font-black font-mono mt-1 text-amber-600">0 F</p>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 border-l-4 border-l-purple-600">
+                        <p class="text-[10px] text-gray-400 uppercase font-extrabold tracking-wider">Concours Funds</p>
+                        <p id="kpiConcours" class="text-lg sm:text-xl font-black font-mono mt-1 text-purple-600">0 F</p>
+                    </div>
+                </div>
+
+                <!-- Dual Column Layout: Left (Ledger Table), Right (Live Security/Action Logs) -->
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    
+                    <!-- Left Column: Student Accounts Ledger -->
+                    <div class="lg:col-span-8 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-between">
+                        <div>
+                            <div class="p-4 bg-gray-50 flex flex-col xl:flex-row justify-between items-center gap-4 border-b border-gray-100">
+                                <div class="space-y-1">
+                                    <h3 class="font-extrabold text-gray-900 text-base flex items-center gap-2">
+                                        <span>📋</span> Academic Ledger Registry
+                                    </h3>
+                                    <p class="text-xs text-gray-400">Detailed accounts, book collections tracker, and concours file status.</p>
+                                </div>
+                                <div class="flex flex-col sm:flex-row items-center gap-2.5 w-full xl:w-auto">
+                                    <!-- Archive Session Filter -->
+                                    <div class="flex items-center space-x-1.5 border border-gray-200 py-1.5 px-3 rounded-xl bg-white text-xs font-semibold shadow-sm w-full sm:w-auto">
+                                        <span class="text-gray-400 font-bold whitespace-nowrap">Session Filter:</span>
+                                        <select id="tableYearFilter" onchange="renderTable()" class="bg-transparent border-none text-gray-800 font-black focus:outline-none cursor-pointer focus:ring-0 p-0 text-xs">
+                                            <option value="All Sessions">📁 All Sessions</option>
+                                            <option value="2025/2026">2025/2026</option>
+                                            <option value="2026/2027" selected>2026/2027</option>
+                                            <option value="2027/2028">2027/2028</option>
+                                            <option value="2028/2029">2028/2029</option>
+                                            <option value="2029/2030">2029/2030</option>
+                                        </select>
+                                    </div>
+                                    <input type="text" id="tableSearch" oninput="renderTable()" placeholder="🔍 Search student accounts..." class="px-3 py-1.5 border border-gray-200 bg-white rounded-xl text-xs w-full sm:w-44 focus:outline-none focus:ring-2 focus:ring-blue-500/20">
+                                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                                        <button onclick="fetchCloudData()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-sm cursor-pointer w-full sm:w-auto">
+                                            🔄 Refresh
+                                        </button>
+                                        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-xs transition flex items-center justify-center gap-1 shadow-sm cursor-pointer w-full sm:w-auto">
+                                            📊 CSV
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-gray-50 text-gray-400 uppercase tracking-wider text-[10px] font-extrabold border-b border-gray-100">
+                                            <th class="p-4">ID</th>
+                                            <th class="p-4">Student Details</th>
+                                            <th class="p-4">Tracks</th>
+                                            <th class="p-4">Financial Status</th>
+                                            <th class="p-4">Deliveries</th>
+                                            <th class="p-4 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="studentTableBody" class="divide-y divide-gray-100">
+                                        <tr><td colspan="6" class="p-6 text-center text-gray-400 italic">Synchronising live records...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Security Log Audit Trail Feed -->
+                    <div class="lg:col-span-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col h-fit">
+                        <div class="border-b border-gray-100 pb-3 mb-4 flex justify-between items-center">
+                            <h3 class="font-extrabold text-gray-900 text-sm flex items-center gap-1.5">
+                                <span>🔔</span> Synced Audit Feed
+                            </h3>
+                            <span class="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full border border-blue-100">Active Session</span>
+                        </div>
+                        <div id="activityLogFeed" class="space-y-4 max-h-[500px] overflow-y-auto pr-1 text-xs">
+                            <p class="text-gray-400 italic text-center py-4">No recent cloud actions recorded.</p>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+        </main>
+
+        <!-- ================= STUDENT ACCOUNT HUB MODAL ================= -->
+        <div id="accountHubModal" class="hidden fixed inset-0 bg-gray-950/60 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+            <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+                <div class="bg-blue-700 text-white p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-blue-800">
+                    <div>
+                        <span class="text-[10px] uppercase tracking-widest font-extrabold text-blue-200" id="hubMetaId">Student Account Profile</span>
+                        <h2 class="text-xl font-extrabold" id="hubStudentName">Loading Name...</h2>
+                    </div>
+                    <div class="flex space-x-1 bg-blue-800 p-1 rounded-xl self-stretch sm:self-auto">
+                        <button onclick="switchHubTab('ledger')" id="hubTabBtn-ledger" class="flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg bg-white text-blue-700 transition duration-200">📁 Tuition & Books</button>
+                        <button onclick="switchHubTab('concours')" id="hubTabBtn-concours" class="flex-1 sm:flex-initial px-4 py-2 text-xs font-bold rounded-lg text-white hover:bg-blue-600/50 transition duration-200">📝 Concours Registrations</button>
+                    </div>
+                </div>
+                <div id="hubView-ledger" class="p-6 overflow-y-auto space-y-6 flex-1 bg-gray-50/50">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div class="lg:col-span-5 space-y-6">
+                            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                                <h3 class="font-bold text-gray-900 text-xs uppercase tracking-wider border-b border-gray-100 pb-2">Academic Ledger Balance</h3>
+                                <div class="space-y-3 text-xs font-medium text-gray-600">
+                                    <div class="flex justify-between">
+                                        <span>Academic Tuition Billed:</span>
+                                        <span id="hubAcademicBill" class="font-mono text-gray-900 font-bold">0 F</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Concours Accounts Billed:</span>
+                                        <span id="hubConcoursBill" class="font-mono text-purple-700 font-bold">0 F</span>
+                                    </div>
+                                    <div class="flex justify-between border-t border-gray-100 pt-3">
+                                        <span class="text-gray-900 font-bold">Absolute Total Gross:</span>
+                                        <span id="hubTotalBill" class="font-mono text-gray-900 font-extrabold">0 F</span>
+                                    </div>
+                                    <div class="flex justify-between text-emerald-600 font-bold">
+                                        <span>Payments Collected:</span>
+                                        <span id="hubTotalPaid" class="font-mono">0 F</span>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-3 flex justify-between font-extrabold text-rose-600">
+                                        <span>Outstanding Net Due:</span>
+                                        <span id="hubRemainingBalance" class="font-mono text-base">0 F</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                                <h3 class="font-bold text-gray-900 text-xs uppercase tracking-wider border-b border-gray-100 pb-2 flex justify-between items-center">
+                                    <span>📦 Textbooks & Workbooks</span>
+                                    <span class="text-[10px] text-gray-400 lowercase font-medium">Click box to log pickup</span>
+                                </h3>
+                                <div id="hubDeliverablesList" class="space-y-2.5"></div>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-7 space-y-6">
+                            <div class="bg-blue-50/50 border border-blue-100 p-5 rounded-2xl space-y-4 shadow-sm">
+                                <h3 class="font-bold text-blue-950 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                                    <span>💵</span> Record New Payment Installment
+                                </h3>
+                                <form id="installmentForm" onsubmit="handleNewPayment(event)" class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                                    <div>
+                                        <label class="block font-semibold text-blue-900 mb-1.5">Installment Amount (F CFA) *</label>
+                                        <input type="number" id="instAmount" required min="500" class="w-full px-3 py-2 border border-blue-200 rounded-xl bg-white font-mono font-bold text-blue-950 text-sm focus:ring-2 focus:ring-blue-500/20">
+                                    </div>
+                                    <div>
+                                        <label class="block font-semibold text-blue-900 mb-1.5">Installment Details / Memo *</label>
+                                        <input type="text" id="instPurpose" placeholder="e.g. Tuition Balance, Book Payment" required class="w-full px-3 py-2 border border-blue-200 rounded-xl bg-white text-sm focus:ring-2 focus:ring-blue-500/20">
+                                    </div>
+                                    <div class="sm:col-span-2 flex items-center justify-between gap-4 mt-1">
+                                        <div class="flex-1">
+                                            <label class="block font-semibold text-blue-900 mb-1.5">Channel *</label>
+                                            <select id="instMode" class="w-full px-3 py-2 border border-blue-200 rounded-xl bg-white text-sm font-semibold focus:ring-2 focus:ring-blue-500/20">
+                                                <option value="Cash">Cash</option>
+                                                <option value="Mobile Money">Mobile Money (MOMO/OM)</option>
+                                                <option value="Bank Transfer">Bank Transfer</option>
+                                            </select>
+                                        </div>
+                                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl self-end h-[42px] transition duration-150 cursor-pointer shadow-sm text-xs">Log Payment</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                                <h3 class="font-bold text-gray-900 text-xs uppercase tracking-wider border-b border-gray-100 pb-2">Tuition Installment Logs</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-left text-xs">
+                                        <thead>
+                                            <tr class="border-b border-gray-100 text-gray-400 font-bold uppercase tracking-wider text-[10px]">
+                                                <th class="py-2">Receipt ID</th>
+                                                <th class="py-2">Date</th>
+                                                <th class="py-2">Purpose</th>
+                                                <th class="py-2 text-right">Amount</th>
+                                                <th class="py-2 text-center">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="hubPaymentsHistory" class="divide-y divide-gray-50 text-gray-700 font-medium font-semibold"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ================= CONCOURS (EXAMS) SUBPANEL ================= -->
+                <div id="hubView-concours" class="hidden p-6 overflow-y-auto space-y-6 flex-1 bg-gray-50/50">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        <div class="lg:col-span-5 space-y-4">
+                            <div class="bg-white p-5 rounded-2xl border border-purple-100 shadow-sm space-y-4">
+                                <h3 class="font-bold text-purple-950 text-xs uppercase tracking-wider pb-2 border-b border-purple-100 flex items-center gap-1.5">
+                                    <span>📝</span> Enroll in Competitive Exam (Concours)
+                                </h3>
+                                <form id="concoursForm" onsubmit="handleAddConcours(event)" class="space-y-4 text-xs">
+                                    <div>
+                                        <label class="block font-bold text-gray-700 mb-1.5">Select Specific Concours Registry *</label>
+                                        <select id="concoursSelect" required class="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white font-semibold text-gray-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"></select>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label class="block font-bold text-gray-700 mb-1.5">Base Exam Fee (F) *</label>
+                                            <input type="number" id="concoursBaseFee" required min="10000" max="100000" value="20000" step="1000" oninput="calculateConcoursFormTotal()" class="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white font-mono font-bold text-gray-900 focus:ring-2 focus:ring-purple-500/20">
+                                        </div>
+                                        <div>
+                                            <label class="block font-bold text-gray-700 mb-1.5">Online Processing Fee</label>
+                                            <div class="flex items-center space-x-2">
+                                                <input type="checkbox" id="concoursCheckOnline" checked onchange="calculateConcoursFormTotal()" class="h-4.5 w-4.5 text-purple-600 rounded focus:ring-purple-500/20">
+                                                <input type="number" id="concoursOnlineFee" value="2000" step="500" class="w-full px-2 py-1.5 border border-gray-200 rounded-xl bg-gray-50 text-right font-mono font-bold text-gray-800">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                                        <label class="block font-bold text-gray-700 uppercase tracking-wider text-[10px]">Add-on Administrative Elements</label>
+                                        <div class="grid grid-cols-2 gap-2">
+                                            <label class="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 cursor-pointer select-none">
+                                                <input type="checkbox" id="concoursCheckBank" checked onchange="calculateConcoursFormTotal()" class="h-4 w-4 text-purple-600 rounded">
+                                                <div>
+                                                    <span class="block font-bold text-[10px] text-gray-700">Bank Draft Fee</span>
+                                                    <input type="number" id="concoursBankFee" value="1000" class="w-16 px-1.5 py-0.5 border border-gray-200 rounded bg-white text-right font-mono text-[10px]">
+                                                </div>
+                                            </label>
+                                            <label class="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 cursor-pointer select-none">
+                                                <input type="checkbox" id="concoursCheckPhoto" checked onchange="calculateConcoursFormTotal()" class="h-4 w-4 text-purple-600 rounded">
+                                                <div>
+                                                    <span class="block font-bold text-[10px] text-gray-700">Passport Photo</span>
+                                                    <input type="number" id="concoursPhotoFee" value="1000" class="w-16 px-1.5 py-0.5 border border-gray-200 rounded bg-white text-right font-mono text-[10px]">
+                                                </div>
+                                            </label>
+                                            <label class="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 cursor-pointer select-none">
+                                                <input type="checkbox" id="concoursCheckMed" checked onchange="calculateConcoursFormTotal()" class="h-4 w-4 text-purple-600 rounded">
+                                                <div>
+                                                    <span class="block font-bold text-[10px] text-gray-700">Medical Exam</span>
+                                                    <input type="number" id="concoursMedFee" value="1500" class="w-16 px-1.5 py-0.5 border border-gray-200 rounded bg-white text-right font-mono text-[10px]">
+                                                </div>
+                                            </label>
+                                            <label class="flex items-center space-x-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 cursor-pointer select-none">
+                                                <input type="checkbox" id="concoursCheckCert" checked onchange="calculateConcoursFormTotal()" class="h-4 w-4 text-purple-600 rounded">
+                                                <div>
+                                                    <span class="block font-bold text-[10px] text-gray-700">Certification Service</span>
+                                                    <input type="number" id="concoursCertFee" value="2000" class="w-16 px-1.5 py-0.5 border border-gray-200 rounded bg-white text-right font-mono text-[10px]">
+                                                </div>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="block font-bold text-gray-700 mb-1.5">Required Document Checklists *</label>
+                                        <textarea id="concoursCertDocs" required placeholder="E.g., Birth Certificate, GCE Ordinary Level Slip, GCE Advanced Level Slip, Medical Certificate" class="w-full px-3 py-2 border border-gray-200 rounded-xl bg-white text-[11px] h-16 resize-none focus:ring-2 focus:ring-purple-500/20"></textarea>
+                                        
+                                        <!-- Optional non-conviction checkbox -->
+                                        <label class="flex items-center space-x-2.5 mt-2 cursor-pointer select-none bg-purple-50/50 p-2 border border-purple-100 rounded-xl">
+                                            <input type="checkbox" id="concoursCheckNonConviction" class="h-4.5 w-4.5 rounded text-purple-600 focus:ring-purple-500/20">
+                                            <span class="text-xs font-semibold text-purple-950">Certificate of Non-Conviction <span class="text-[10px] text-purple-500 font-normal italic">(Optional / If applicable to this exam)</span></span>
+                                        </label>
+                                    </div>
+                                    <div class="bg-purple-50 p-3.5 rounded-xl border border-purple-100 flex justify-between items-center">
+                                        <span class="font-bold text-purple-900 text-xs">Total Concours Bill:</span>
+                                        <span id="concoursLiveFormTotal" class="text-base font-black font-mono text-purple-700">27,500 F</span>
+                                    </div>
+                                    <button type="submit" class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-2.5 rounded-xl transition duration-150 shadow-md">➕ Allocate Concours to Account</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-7 space-y-4">
+                            <div class="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                                <h3 class="font-bold text-gray-900 text-xs uppercase tracking-wider border-b border-gray-100 pb-2">Enrolled Concours Tracking</h3>
+                                <div id="hubConcoursList" class="space-y-4 max-h-[50vh] overflow-y-auto pr-1"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-50 p-4 border-t border-gray-100 flex justify-between items-center">
+                    <button onclick="printLedgerCard()" class="bg-gray-800 hover:bg-gray-900 text-white font-bold py-2 px-5 rounded-xl text-xs transition shadow-sm cursor-pointer">🖨️ Print Student Statement Card</button>
+                    <button onclick="closeAccountHub()" class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-5 rounded-xl border text-xs transition cursor-pointer">Close Profile Card</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ================= OFFICIAL RECEIPT MODAL ================= -->
+        <div id="receiptModal" class="hidden fixed inset-0 bg-gray-950/60 flex items-center justify-center p-4 z-50 animate-fade-in backdrop-blur-sm">
+            <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-gray-100">
+                <button onclick="closeReceipt()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold no-print">✕</button>
+                <div id="receiptLogoContainer" class="hidden flex justify-center mb-3">
+                    <img id="receiptLogo" src="" alt="Institution Logo" class="max-h-16 max-w-[150px] object-contain">
+                </div>
+                <div class="text-center space-y-1 mb-4 border-b border-dashed border-gray-200 pb-4">
+                    <h2 class="text-lg font-extrabold tracking-tight text-blue-700">OFFICIAL TRANSACTION SLIP</h2>
+                    <p class="text-[9px] text-gray-500 uppercase tracking-widest font-extrabold">Medoc Academic Registry</p>
+                    <p class="text-xs text-gray-400 font-mono mt-1">Receipt #: <span id="rcptId" class="font-bold text-gray-800"></span></p>
+                    <p class="text-[10px] text-gray-400 font-mono">Date: <span id="rcptDate" class="font-bold text-gray-800"></span></p>
+                </div>
+                <div class="space-y-4">
+                    <div class="text-xs space-y-1">
+                        <p class="text-gray-400 uppercase font-extrabold tracking-wider text-[9px]">Account Owner</p>
+                        <p id="rcptName" class="font-extrabold text-gray-800 text-base"></p>
+                        <p id="rcptPhone" class="text-gray-500 font-mono font-bold"></p>
+                        <p id="rcptDept" class="text-[10px] bg-gray-50 border border-gray-100 text-gray-700 font-bold px-2.5 py-1 rounded-lg w-fit mt-1.5 uppercase tracking-wide"></p>
+                        <p id="rcptSession" class="text-[10px] bg-purple-50 border border-purple-100 text-purple-700 font-extrabold px-2 py-0.5 rounded-md w-fit mt-1 uppercase tracking-wide"></p>
+                    </div>
+                    <div class="border-t border-dashed border-gray-200 pt-3">
+                        <p class="text-gray-400 uppercase font-extrabold tracking-wider text-[9px] mb-2.5">Transaction Statement Details</p>
+                        <div id="rcptItems" class="space-y-2 text-xs font-mono font-semibold"></div>
+                    </div>
+                    <div class="border-t-2 border-dashed border-gray-800 pt-3.5 flex justify-between items-center bg-gray-50 p-3 rounded-xl border border-gray-200">
+                        <span class="text-xs font-bold text-gray-800">TOTAL TRANSACTION VALUE</span>
+                        <span id="rcptTotal" class="text-lg font-black text-blue-800 font-mono"></span>
+                    </div>
+                    <div class="mt-8 pt-4 border-t border-dashed border-gray-100 flex justify-end">
+                        <div class="text-center w-48">
+                            <div class="h-14"></div> 
+                            <div class="border-t border-gray-300 text-[9px] font-extrabold text-gray-500 uppercase tracking-widest pt-1.5">Office Stamp & Signature</div>
+                        </div>
+                    </div>
+                    <div class="text-center text-[9px] text-gray-400 pt-4 border-t border-dashed uppercase tracking-wider font-semibold">Payment is strictly non-refundable • Keep Safe</div>
+                </div>
+                <div class="mt-6 flex gap-3 no-print">
+                    <button onclick="window.print()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md hover:shadow-lg transition text-center cursor-pointer text-xs">🖨️ Print Slip</button>
+                    <button onclick="closeReceipt()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2.5 px-4 rounded-xl transition text-center cursor-pointer text-xs">Close Slip</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="customConfirmModal" class="hidden fixed inset-0 bg-gray-950/60 flex items-center justify-center p-4 z-[60] animate-fade-in backdrop-blur-sm">
+            <div class="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl border border-gray-100 space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="bg-rose-50 text-rose-600 p-2.5 rounded-full border border-rose-100">
+                        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-950 text-base" id="confirmTitle">Confirm Action</h3>
+                        <p class="text-xs text-gray-500 mt-0.5" id="confirmDesc">Are you sure you want to proceed?</p>
+                    </div>
+                </div>
+                <div class="flex justify-end gap-3 pt-2">
+                    <button id="confirmCancelBtn" class="bg-white hover:bg-gray-100 text-gray-700 font-semibold py-2 px-4 rounded-xl border text-xs transition">Cancel</button>
+                    <button id="confirmProceedBtn" class="bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-xl text-xs transition shadow-md">Yes, Proceed</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= APP ENGINEERING ENGINE SCRIPTS ================= -->
+    <script>
+        const CLOUD_URL = "https://script.google.com/macros/s/AKfycbx5Xj-JeflwEJETNk3BXaka1fmeBdx31RWIzJbQXSX3ktvVR9kLAlGUMS-QBw4ApJfFEw/exec";
+        const EARLY_BIRD_LIMIT = 20;
+
+        const booksData = {
+            "Health Sciences": {
+                workbooks: ["Medicine workbook", "State registered nurse workbook", "FAVM workbook", "MLS/NUS/Midwifery/public health workbook"],
+                textbooks: ["Medical school secrets textbook"]
+            },
+            "Engineering": {
+                workbooks: ["Engineering workbook"],
+                textbooks: ["Engineering textbook"]
+            }
+        };
+
+        const concoursData = {
+            "Health Sciences": [
+                "National Qualifying examination for medical training in Cameroon (medicine, pharmacy dentistry)",
+                "State Registered Nursing, Midwifery, Assistant nurse, and other MINSANTE concours",
+                "Medical Laboratory Sciences and Nursing - FHS Bamenda",
+                "Medical Laboratory Sciences and Nursing - FHS Buea",
+                "Bsc Midwifery – FHS Buea",
+                "Bsc Biomedical Sciences – FHS Buea",
+                "Bsc Public Health – FHS Buea",
+                "Bsc Biomedical sciences – Faculte des Sciences Ebolowa",
+                "Bsc Biomedical sciences – Faculte de Medecine et des Sciences Biomedicales Garoua",
+                "Bsc Biomedical sciences – Faculte des Sciences Ngaoundere",
+                "Bsc Biomedical sciences – Faculte des Sciences Biomedicales Dschang",
+                "Nursing – Centre d’enseignement supérieurs en soins infirmier (CESSI) – FMSB Yde 1",
+                "Faculty of Agriculture and Veterinary Medicine - Buea",
+                "Agricultural Engineering. Crop production_ COLTECH - Bamenda",
+                "Limbe Nautical Arts and Fisheries Institute (LINAFI) - Limbe",
+                "National school of Forestry Technology ( IUT-Bois) Mbalmayo – Yde 1",
+                "Faculty of Veterinary Medicine - Ngaoundere",
+                "Institut des beaux-Arts et de l’innovation ( Architecture, Urbanism, Plastic Arts, Audiovisual arts) - Garoua",
+                "Institut Superieur d’Agriculture, du Bois, de l’Eau et de l’Environnement - Ebolowa",
+                "Science Biologique Appliquees a L’Agriculture – Faculte des sciences - Ebolowa",
+                "Institut Superieur d’Agriculture, du Bois, de l’Eau et de l’Environnement - Bertoua",
+                "Faculte d’Agronomie and des Sciences Agricoles_FASA- Dschang",
+                "Institut des beaux-Arts de Foumban – University of Dschang",
+                "Centre Regional Specialise en Agriculture Nkolbison-Yde",
+                "Ecole Nationale Superieure d’Agronomie, d’Halieutique et Medecine Veterinaire - Douala",
+                "Institut des Beaux-Arts - Douala",
+                "Ecole Normale Superieure d’Agro-Industrielles - Ngaoundere"
+            ],
+            "Engineering": [
+                "National Higher Polytechnic Institute - Bamenda",
+                "College of Technology - Bamenda",
+                "Ecole Superieure de Transformation des mines et de Resources Energetiques (ESTM) - Bertoua",
+                "Faculty of Engineering and Technology - Buea",
+                "College of Technology - Buea",
+                "Ecole Normale Superieure Polytechnique - Douala",
+                "Ecole Normale Superieure Polytechnique (regime Special) - Douala",
+                "Institut Universitaire de Technology (IUT) - Douala",
+                "Institut Universitaire de Technology formation par alternance (IUT) - Douala",
+                "Institut Universitaire de Technology Fotso Victor (IUT-FV) _ DUT – Bandjoun _UDs",
+                "Institut Universitaire de Technology Fotso Victor (IUT-FV) _ BTS – Bandjoun _UDs",
+                "Ecole Nationale Superieure des Sciences et Techniques Maritimes et Oceaniques - Ebolowa",
+                "Ecole Nationale Superieure Polytechnique - Maroua",
+                "Ecole Nationale Superieure des Mines..."
+            ]
+        };
+
+        concoursData["Engineering"].push(
+            "Ecole Nationale Superieure des Mines et Industries Petrolieres - Maroua",
+            "Institut Universitaire de Technology (IUT) _ DUT – Ngaoundere",
+            "Institut Universitaire de Technology (IUT) _ BTS – Ngaoundere",
+            "Ecole de Geologie et D’exploitation Miniere (EGEM) - Ngaoundere",
+            "Ecole de Genie Chemique et des Industries Minerales - Ngaoundere",
+            "Ecole Nationale Superieure Polytechnique – Yaounde 1",
+            "Public works- Techniciens Superieurs – 2 years",
+            "Public works- Genie Civil, Genie de l’Environement, Genie Rural et Topographie Cadastre – 5 years",
+            "Public works- Architecture – 5 years",
+            "Public works- Urbanisation Engineer- 5 years",
+            "Post and Telecommunication- Engineer in Telecommunication – 5 years",
+            "Post and Telecommunication- Assistant Telecommunication Engineer (formation par alternance) – 3 years",
+            "Post and Telecommunication – Administration of post and telecommunication- 5 years",
+            "Post and Telecommunication- Inspector of Post and Telecommunication (formation par alternance) – 3 years",
+            "Post and Telecommunication- Assistant Telecommunication Engineer – 3 years",
+            "Post and Telecommunication- Inspector of Post and Telecommunication – 3 years",
+            "Post and Telecommunication- Controllers of Post and Telecommunications – 3 years",
+            "Post and Telecommunication- Telecommunication Technician– 3 years",
+            "Higher Teachers Training College (ENS)",
+            "Higher Technical Teachers Training College (ENSET)"
+        );
+
+        let students = [];
+        let simulatedLogs = [];
+        let currentlySelectedStudent = null;
+        let currentUser = null;
+        
+        // Multi-Year Tracking State
+        let activeAcademicYear = localStorage.getItem('medoc_active_year') || "2026/2027";
+
+        window.onload = function() {
+            // Apply default active year to header dropdown selector
+            document.getElementById('headerActiveYear').value = activeAcademicYear;
+            displayLogo();
+            updateFormContext();
+            checkStaffSession();
+        };
+
+        function changeActiveAcademicYear(val) {
+            activeAcademicYear = val;
+            localStorage.setItem('medoc_active_year', val);
+            showToast(`Active Academic Session changed to [${val}]. All registrations will fall under this session!`, "warning");
+            calculateLiveTotal();
+        }
+
+        function checkStaffSession() {
+            const cachedSession = localStorage.getItem('medoc_auth_session');
+            if (cachedSession) {
+                try {
+                    currentUser = JSON.parse(cachedSession);
+                    unlockPortalInterface();
+                } catch(e) {
+                    localStorage.removeItem('medoc_auth_session');
+                    showLoginScreen();
+                }
+            } else {
+                showLoginScreen();
+            }
+        }
+
+        function showLoginScreen() {
+            document.getElementById('portalMain').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        function unlockPortalInterface() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('portalMain').classList.remove('flex', 'hidden');
+            document.getElementById('portalMain').classList.add('flex');
+            
+            document.getElementById('currentStaffName').textContent = `${currentUser.fullName} (${currentUser.role})`;
+            
+            // Warm up mock simulated log database if in sandbox mode
+            const cachedSimLogs = localStorage.getItem('medoc_simulated_logs');
+            if (cachedSimLogs) {
+                simulatedLogs = JSON.parse(cachedSimLogs);
+            } else {
+                simulatedLogs = [{
+                    timestamp: new Date().toLocaleString(),
+                    user: currentUser.fullName,
+                    action: "LOGIN",
+                    details: "Staff workspace access certified securely",
+                    studentId: "N/A",
+                    studentName: "N/A"
+                }];
+                localStorage.setItem('medoc_simulated_logs', JSON.stringify(simulatedLogs));
+            }
+            
+            fetchCloudData();
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const userBox = document.getElementById('loginUsername');
+            const passBox = document.getElementById('loginPassword');
+            const submitBtn = document.getElementById('loginSubmitBtn');
+            const errorAlert = document.getElementById('loginError');
+            const errorText = document.getElementById('loginErrorText');
+
+            const u = userBox.value.trim();
+            const p = passBox.value.trim();
+            if (!u || !p) return;
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Verifying with Cloud...
+            `;
+            errorAlert.classList.add('hidden');
+
+            try {
+                if (CLOUD_URL && !CLOUD_URL.includes("exec") === false) {
+                    const verifyUrl = `${CLOUD_URL}?action=login&username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}`;
+                    const response = await fetch(verifyUrl);
+                    const result = await response.json();
+
+                    if (result.authenticated && result.user) {
+                        currentUser = result.user;
+                        localStorage.setItem('medoc_auth_session', JSON.stringify(currentUser));
+                        userBox.value = "";
+                        passBox.value = "";
+                        showToast(`Access granted! Welcome, ${currentUser.fullName}.`, "success");
+                        unlockPortalInterface();
+                    } else {
+                        errorText.textContent = result.message || "Invalid username or password.";
+                        errorAlert.classList.remove('hidden');
+                    }
+                } else {
+                    // Sandbox fallback credentials
+                    if (u.toLowerCase() === "medoc.staff" && p === "Medoc2026!") {
+                        currentUser = { username: "medoc.staff", fullName: "Medoc Sandbox Staff", role: "Manager" };
+                        localStorage.setItem('medoc_auth_session', JSON.stringify(currentUser));
+                        userBox.value = "";
+                        passBox.value = "";
+                        showToast("Demo environment authorized instantly!", "warning");
+                        unlockPortalInterface();
+                    } else {
+                        errorText.textContent = "Sandbox Mode: Use medoc.staff / Medoc2026!";
+                        errorAlert.classList.remove('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error("Login verification failed", err);
+                errorText.textContent = "Unable to contact verification server. Checking local backup credentials...";
+                errorAlert.classList.remove('hidden');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = `<span>🔑</span> Validate Credentials`;
+            }
+        }
+
+        function handleLogout() {
+            askConfirmation(
+                "Secure Log Out", 
+                "Are you sure you want to log out of the portal? This will lock this device's workspace access.", 
+                () => {
+                    localStorage.removeItem('medoc_auth_session');
+                    currentUser = null;
+                    students = [];
+                    renderTable();
+                    showLoginScreen();
+                    showToast("Successfully logged out.", "success");
+                }
+            );
+        }
+
+        async function fetchCloudData() {
+            if (!currentUser) return;
+            showSpinner("Loading student accounts database...");
+            let loadedFromCloud = false;
+
+            const cachedData = localStorage.getItem('medoc_students_local');
+            if (cachedData) {
+                try {
+                    students = JSON.parse(cachedData);
+                } catch(e) {
+                    console.error("Local storage parsing failed", e);
+                }
+            }
+            
+            if (CLOUD_URL && CLOUD_URL !== "") {
+                try {
+                    const response = await fetch(CLOUD_URL);
+                    const cloudData = await response.json();
+                    
+                    if (Array.isArray(cloudData)) {
+                        students = cloudData.map(s => {
+                            try { if (typeof s.breakdown === "string") s.breakdown = JSON.parse(s.breakdown); } catch (e) { s.breakdown = null; }
+                            try { if (typeof s.payments === "string") s.payments = JSON.parse(s.payments); } catch (e) { s.payments = []; }
+                            try { if (typeof s.deliveries === "string") s.deliveries = JSON.parse(s.deliveries); } catch (e) { s.deliveries = {}; }
+                            try { if (typeof s.items === "string") s.items = JSON.parse(s.items); } catch (e) { s.items = []; }
+                            try { if (typeof s.concours === "string") s.concours = JSON.parse(s.concours); } catch (e) { s.concours = []; }
+                            
+                            s.id = s.id || "STU-UNKNOWN"; 
+                            s.name = s.name || "Unnamed Student"; 
+                            s.phone = s.phone || "No Phone"; 
+                            s.location = s.location || "Unrecorded";
+                            s.tracks = s.tracks || "No Track Details"; 
+                            s.totalPaid = Number(s.totalPaid) || 0; 
+                            s.balance = Number(s.balance) || 0; 
+                            s.campaign = s.campaign || "Standard";
+                            s.academicYear = s.academicYear || "2025/2026"; // Upgrade fallback
+
+                            if (!s.breakdown || typeof s.breakdown !== "object") s.breakdown = { grossTotal: 0, regFee: 5000, tuitionFee: 0, textbookFeeSum: 0, extraWbFeeSum: 0 };
+                            if (!s.payments || !Array.isArray(s.payments)) s.payments = [];
+                            if (!s.deliveries || typeof s.deliveries !== "object") s.deliveries = {};
+                            if (!s.items || !Array.isArray(s.items)) s.items = [];
+                            if (!s.concours || !Array.isArray(s.concours)) s.concours = [];
+                            return s;
+                        });
+                        loadedFromCloud = true;
+                        localStorage.setItem('medoc_students_local', JSON.stringify(students));
+                    }
+                } catch (err) { 
+                    console.warn("Could not load from Google Sheets. Running in sandbox-cache mode.", err); 
+                }
+                
+                // Retrieve synced security log trail
+                try {
+                    const logRes = await fetch(`${CLOUD_URL}?action=getLogs`);
+                    const cloudLogs = await logRes.json();
+                    if (Array.isArray(cloudLogs)) {
+                        renderActivityFeed(cloudLogs);
+                    }
+                } catch(e) {
+                    console.warn("Failed to retrieve audit trail. Falling back to local log pipeline.", e);
+                    renderActivityFeed(simulatedLogs);
+                }
+            } else {
+                renderActivityFeed(simulatedLogs);
+            }
+            
+            if (!loadedFromCloud && students.length === 0 && localStorage.getItem('demo_cleared') !== 'true') {
+                seedDemoData();
+            }
+            
+            renderTable();
+            calculateLiveTotal();
+            hideSpinner();
+        }
+
+        function logLocalActivity(actionType, details, studentId, studentName) {
+            const timestamp = new Date().toLocaleString();
+            const logEntry = {
+                timestamp,
+                user: currentUser ? currentUser.fullName : "Workspace System",
+                action: actionType,
+                details,
+                studentId: studentId || "N/A",
+                studentName: studentName || "N/A"
+            };
+            simulatedLogs.unshift(logEntry);
+            if (simulatedLogs.length > 50) simulatedLogs.pop();
+            localStorage.setItem('medoc_simulated_logs', JSON.stringify(simulatedLogs));
+            
+            if (!CLOUD_URL || CLOUD_URL === "") {
+                renderActivityFeed(simulatedLogs);
+            }
+        }
+
+        function renderActivityFeed(logsList) {
+            const container = document.getElementById('activityLogFeed');
+            if (!container) return;
+            container.innerHTML = "";
+            
+            if (!logsList || logsList.length === 0) {
+                container.innerHTML = `<p class="text-gray-400 italic text-center py-4">No recent office logs mapped.</p>`;
+                return;
+            }
+            
+            logsList.forEach(log => {
+                let badgeColor = "bg-gray-100 text-gray-700 border-gray-200";
+                if (log.action === "REGISTRATION") badgeColor = "bg-emerald-50 text-emerald-800 border-emerald-200";
+                if (log.action === "UPDATE") badgeColor = "bg-blue-50 text-blue-800 border-blue-200";
+                if (log.action === "LOGIN") badgeColor = "bg-indigo-50 text-indigo-800 border-indigo-200";
+                
+                let div = document.createElement('div');
+                div.className = "p-3 bg-gray-50 border border-gray-100 rounded-xl space-y-1.5 transition hover:shadow-sm";
+                div.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="px-2 py-0.5 text-[8px] font-extrabold rounded uppercase border ${badgeColor}">${log.action}</span>
+                        <span class="text-[9px] text-gray-400 font-mono">${log.timestamp}</span>
+                    </div>
+                    <p class="text-[11px] font-semibold text-gray-800">${log.details}</p>
+                    <div class="flex justify-between text-[10px] text-gray-500 font-medium">
+                        <span>By: <strong>${log.user}</strong></span>
+                        ${log.studentId !== "N/A" ? `<span>Ref ID: <strong class="text-blue-700 font-mono">${log.studentId}</strong></span>` : ""}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function handleRegistration(e) {
+            e.preventDefault();
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            
+            const isDemo = document.getElementById('isDemoStudent').value === "true";
+            const name = document.getElementById('studentName').value.trim();
+            const phone = document.getElementById('studentPhone').value.trim();
+            const location = document.getElementById('studentLocation').value.trim();
+            const primaryDept = document.querySelector('input[name="primaryDept"]:checked').value;
+            const isDual = document.getElementById('dualEnrollment').checked;
+            const primaryFreeWb = document.getElementById('primaryWorkbook').value;
+            const campaign = document.getElementById('specialCampaign').value;
+
+            const financeData = calculateLiveTotal();
+            const initialPaid = parseInt(document.getElementById('amountPaidToday').value) || 0;
+            const initialMode = document.getElementById('paymentMode').value;
+
+            let purposeString = "Registration (5,000F)";
+            const tCheck = document.getElementById('allocTuitionCheck');
+            if (tCheck && tCheck.checked) {
+                let tAmt = parseInt(document.getElementById('allocTuitionAmt').value) || 0;
+                if(tAmt > 0) purposeString += ` + Tuition (${tAmt.toLocaleString()}F)`;
+            }
+            document.querySelectorAll('.alloc-book-cb:checked').forEach(cb => {
+                purposeString += ` + ${cb.getAttribute('data-name')} (${parseInt(cb.getAttribute('data-price')).toLocaleString()}F)`;
+            });
+
+            let deliveries = {};
+            deliveries[primaryFreeWb] = { status: "Pending Pickup", date: "" };
+            
+            if (document.getElementById('bookMed').checked) deliveries["Medical School Secrets Textbook"] = { status: "Pending Pickup", date: "" };
+            if (document.getElementById('bookEng').checked) deliveries["Engineering Textbook"] = { status: "Pending Pickup", date: "" };
+
+            const extraContainer = document.getElementById('extraWorkbooksContainer');
+            const checkedBoxes = extraContainer.querySelectorAll('input[type="checkbox"]:checked');
+            
+            let logsPurchased = [];
+            logsPurchased.push(`${primaryFreeWb} (Free Primary Choice)`);
+
+            const isWaiver = (campaign === "Olympiad Outstanding" || campaign === "Full Scholarship");
+            
+            if (document.getElementById('bookMed').checked) {
+                const bookPrice = isWaiver ? 0 : parseInt(document.getElementById('priceMed').value);
+                logsPurchased.push(`Medical School Secrets Textbook (${bookPrice.toLocaleString()} F)`);
+            }
+            if (document.getElementById('bookEng').checked) {
+                const bookPrice = isWaiver ? 0 : parseInt(document.getElementById('priceEng').value);
+                logsPurchased.push(`Engineering Textbook (${bookPrice.toLocaleString()} F)`);
+            }
+
+            checkedBoxes.forEach(box => {
+                const bookPrice = isWaiver ? 0 : 5000;
+                logsPurchased.push(`${box.value} (${isWaiver ? 'Olympiad Free' : 'Extra Add-on'} - ${bookPrice.toLocaleString()} F)`);
+                deliveries[box.value] = { status: "Pending Pickup", date: "" };
+            });
+
+            const baseReceiptId = "RCPT-" + Date.now().toString().slice(-6) + "-01";
+            const initialReceipt = {
+                receiptId: baseReceiptId,
+                date: new Date().toLocaleDateString('en-GB'),
+                amount: initialPaid,
+                purpose: purposeString,
+                mode: initialMode
+            };
+
+            const prefixId = isDemo ? "DEMO-" : "STU-";
+            const newStudent = {
+                id: prefixId + Date.now().toString().slice(-6),
+                date: new Date().toLocaleDateString('en-GB'),
+                name: name,
+                phone: phone,
+                location: location || "Unrecorded",
+                tracks: isDual ? `${primaryDept} + Secondary Track` : primaryDept,
+                breakdown: financeData,
+                totalPaid: initialPaid,
+                balance: financeData.grossTotal - initialPaid,
+                payments: [initialReceipt],
+                deliveries: deliveries,
+                items: logsPurchased,
+                concours: [],
+                campaign: campaign,
+                academicYear: activeAcademicYear // Multi-Year Tagging
+            };
+
+            if (isDemo) {
+                localStorage.removeItem('demo_cleared');
+            }
+
+            students.push(newStudent);
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            
+            // Log action into local audit stream immediately
+            logLocalActivity("REGISTRATION", `Registered student roster for session [${activeAcademicYear}]: ${newStudent.name}`, newStudent.id, newStudent.name);
+
+            if (!isDemo) showSpinner("Writing multi-tab records to Google Sheets...");
+
+            try {
+                if (!isDemo && CLOUD_URL !== "") {
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "register", 
+                            student: newStudent,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                
+                triggerReceipt(newStudent, baseReceiptId);
+                if (isDemo) showToast("Demo Student logged locally!", "warning");
+                else showToast("Roster, textbook registries, and payment entries synced successfully!", "success");
+                
+                document.getElementById('regForm').reset();
+                document.getElementById('isDemoStudent').value = "false";
+                document.getElementById('specialCampaign').value = "Standard";
+                applyCampaignPricing();
+                updateFormContext();
+            } catch (err) {
+                console.warn("Cloud connection offline. Registered student locally in cache.", err);
+                triggerReceipt(newStudent, baseReceiptId);
+                showToast("Saved locally to registry (Cloud synchronization pending).", "warning");
+                
+                document.getElementById('regForm').reset();
+                document.getElementById('specialCampaign').value = "Standard";
+                applyCampaignPricing();
+                updateFormContext();
+            } finally {
+                submitBtn.disabled = false;
+                hideSpinner();
+                renderTable();
+            }
+        }
+
+        function triggerReceipt(studentObj, targetReceiptId) {
+            const tx = studentObj.payments.find(p => p.receiptId === targetReceiptId);
+            if (!tx) return;
+
+            document.getElementById('rcptId').textContent = tx.receiptId;
+            document.getElementById('rcptDate').textContent = tx.date;
+            document.getElementById('rcptName').textContent = studentObj.name;
+            document.getElementById('rcptPhone').textContent = studentObj.phone;
+            document.getElementById('rcptDept').textContent = `${studentObj.tracks} | Res: ${studentObj.location}`;
+            document.getElementById('rcptSession').textContent = `Academic Session: ${studentObj.academicYear || activeAcademicYear}`;
+
+            const itemsContainer = document.getElementById('rcptItems');
+            itemsContainer.innerHTML = "";
+
+            const appendLine = (label, desc) => {
+                let div = document.createElement('div');
+                div.className = "flex justify-between border-b border-gray-100 py-1.5";
+                div.innerHTML = `<span>${label}</span><span class="text-gray-600 font-bold max-w-[200px] text-right">${desc}</span>`;
+                itemsContainer.appendChild(div);
+            };
+
+            appendLine("Enrollment ID", studentObj.id);
+            appendLine("Campaign Scheme", studentObj.campaign || "Standard");
+            appendLine("Payment Allocation", tx.purpose);
+            appendLine("Payment Channel", tx.mode);
+            
+            const totalBillAggregate = studentObj.breakdown.grossTotal + getStudentConcoursTotalBilled(studentObj);
+            appendLine("Gross Program Billing", `${totalBillAggregate.toLocaleString()} F CFA`);
+            appendLine("Total Paid To Date", `${studentObj.totalPaid.toLocaleString()} F CFA`);
+            appendLine("Net Balance Due", `${(totalBillAggregate - studentObj.totalPaid).toLocaleString()} F CFA`);
+
+            document.getElementById('rcptTotal').textContent = `${tx.amount.toLocaleString()} F CFA`;
+            document.getElementById('receiptModal').classList.remove('hidden');
+        }
+
+        function closeReceipt() { document.getElementById('receiptModal').classList.add('hidden'); }
+
+        function switchHubTab(tabName) {
+            const ledgerView = document.getElementById('hubView-ledger');
+            const concoursView = document.getElementById('hubView-concours');
+            const ledgerBtn = document.getElementById('hubTabBtn-ledger');
+            const concoursBtn = document.getElementById('hubTabBtn-concours');
+
+            if (tabName === 'ledger') {
+                ledgerView.classList.remove('hidden');
+                concoursView.classList.add('hidden');
+                ledgerBtn.className = "px-4 py-2 text-xs font-bold rounded-lg bg-white text-blue-700 transition duration-200";
+                concoursBtn.className = "px-4 py-2 text-xs font-bold rounded-lg text-white hover:bg-blue-600/50 transition duration-200";
+            } else {
+                ledgerView.classList.add('hidden');
+                concoursView.classList.remove('hidden');
+                ledgerBtn.className = "px-4 py-2 text-xs font-bold rounded-lg text-white hover:bg-blue-600/50 transition duration-200";
+                concoursBtn.className = "px-4 py-2 text-xs font-bold rounded-lg bg-white text-blue-700 transition duration-200";
+                populateConcoursSelections();
+                calculateConcoursFormTotal();
+            }
+        }
+
+        function openAccountHub(id) {
+            currentlySelectedStudent = students.find(s => s.id === id);
+            if (!currentlySelectedStudent) return;
+
+            document.getElementById('hubMetaId').textContent = `Registry ID: ${currentlySelectedStudent.id} | Session: ${currentlySelectedStudent.academicYear || "Unknown"} | Campaign: ${currentlySelectedStudent.campaign || 'Standard'}`;
+            document.getElementById('hubStudentName').textContent = `${currentlySelectedStudent.name} (${currentlySelectedStudent.location || 'Unrecorded'})`;
+            
+            switchHubTab('ledger');
+            refreshHubData();
+            document.getElementById('accountHubModal').classList.remove('hidden');
+        }
+
+        function closeAccountHub() {
+            document.getElementById('accountHubModal').classList.add('hidden');
+            currentlySelectedStudent = null;
+            renderTable();
+        }
+
+        function refreshHubData() {
+            const s = currentlySelectedStudent;
+            const concoursGross = getStudentConcoursTotalBilled(s);
+            const overallGross = s.breakdown.grossTotal + concoursGross;
+            s.balance = overallGross - s.totalPaid;
+
+            document.getElementById('hubAcademicBill').textContent = `${s.breakdown.grossTotal.toLocaleString()} F`;
+            document.getElementById('hubConcoursBill').textContent = `${concoursGross.toLocaleString()} F`;
+            document.getElementById('hubTotalBill').textContent = `${overallGross.toLocaleString()} F`;
+            document.getElementById('hubTotalPaid').textContent = `${s.totalPaid.toLocaleString()} F`;
+            document.getElementById('hubRemainingBalance').textContent = `${s.balance.toLocaleString()} F`;
+
+            const balLabel = document.getElementById('hubRemainingBalance').parentElement;
+            if (s.balance <= 0) {
+                balLabel.className = "border-t border-gray-100 pt-3 flex justify-between font-extrabold text-emerald-600";
+            } else {
+                balLabel.className = "border-t border-gray-100 pt-3 flex justify-between font-extrabold text-rose-600";
+            }
+
+            const historyBody = document.getElementById('hubPaymentsHistory');
+            historyBody.innerHTML = "";
+
+            s.payments.forEach(tx => {
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-50 border-b border-gray-100";
+                tr.innerHTML = `
+                    <td class="py-2.5 font-mono font-bold text-blue-700">${tx.receiptId}</td>
+                    <td class="py-2.5 text-gray-500">${tx.date}</td>
+                    <td class="py-2.5 text-gray-600 font-semibold truncate max-w-[150px]" title="${tx.purpose}">${tx.purpose}</td>
+                    <td class="py-2.5 text-right font-mono font-bold text-gray-950">${tx.amount.toLocaleString()} F</td>
+                    <td class="py-2.5 text-center">
+                        <button onclick="reprintSingleReceipt('${tx.receiptId}')" class="bg-blue-50 text-blue-700 border border-blue-200 font-bold px-2.5 py-1 rounded-lg text-[10px] hover:bg-blue-100 transition duration-150">
+                            🖨️ Slips
+                        </button>
+                    </td>
+                `;
+                historyBody.appendChild(tr);
+            });
+
+            const deliverablesContainer = document.getElementById('hubDeliverablesList');
+            deliverablesContainer.innerHTML = "";
+
+            if (!s.deliveries) s.deliveries = {};
+
+            Object.keys(s.deliveries).forEach(bookName => {
+                const info = s.deliveries[bookName];
+                const isCollected = info.status === "Collected";
+                
+                let div = document.createElement('div');
+                div.className = `flex justify-between items-center p-3 rounded-2xl border text-xs transition duration-150 ${isCollected ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`;
+                div.innerHTML = `
+                    <div class="flex-1">
+                        <p class="font-bold text-gray-800">${bookName}</p>
+                        <p class="text-[10px] text-gray-500 font-semibold mt-0.5">
+                            Status: ${isCollected ? `🟢 Handed over on ${info.date}` : '🔴 Pending Pickup'}
+                        </p>
+                    </div>
+                    <label class="flex items-center gap-1.5 cursor-pointer bg-white px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm select-none">
+                        <input type="checkbox" ${isCollected ? 'checked' : ''} onchange="toggleBookPickup('${bookName}', this.checked)" class="h-4.5 w-4.5 text-emerald-600 rounded">
+                        <span class="text-[10px] font-bold text-gray-700">Picked Up</span>
+                    </label>
+                `;
+                deliverablesContainer.appendChild(div);
+            });
+
+            renderConcoursLedgerList();
+        }
+
+        function reprintSingleReceipt(receiptId) { triggerReceipt(currentlySelectedStudent, receiptId); }
+
+        async function handleNewPayment(e) {
+            e.preventDefault();
+            const s = currentlySelectedStudent;
+            const amt = parseInt(document.getElementById('instAmount').value) || 0;
+            const purpose = document.getElementById('instPurpose').value.trim();
+            const mode = document.getElementById('instMode').value;
+
+            if (amt <= 0) return;
+            const isDemo = s.id && s.id.includes("DEMO-");
+
+            const newTxId = "RCPT-" + Date.now().toString().slice(-6) + "-" + (s.payments.length + 1).toString().padStart(2, '0');
+            const newPaymentObj = { receiptId: newTxId, date: new Date().toLocaleDateString('en-GB'), amount: amt, purpose: purpose, mode: mode };
+
+            s.payments.push(newPaymentObj);
+            s.totalPaid += amt;
+            s.balance = (s.breakdown.grossTotal + getStudentConcoursTotalBilled(s)) - s.totalPaid;
+
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            logLocalActivity("UPDATE", `Collected payment installment: ${amt.toLocaleString()}F CFA [${purpose}]`, s.id, s.name);
+
+            if(!isDemo) showSpinner("Appending payment receipt to Cloud database...");
+            
+            try {
+                if(!isDemo && CLOUD_URL !== "") {
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "update", 
+                            student: s,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                document.getElementById('installmentForm').reset();
+                refreshHubData();
+                triggerReceipt(s, newTxId);
+                showToast(isDemo ? "Logged to local cache." : "Tuition payments sheet synchronized successfully!", isDemo ? "warning" : "success");
+            } catch (err) {
+                console.warn("Cloud connection offline.", err);
+                document.getElementById('installmentForm').reset();
+                refreshHubData();
+                triggerReceipt(s, newTxId);
+                showToast("Installment cached locally (Syncing with Sheets pending).", "warning");
+            } finally { hideSpinner(); }
+        }
+
+        async function toggleBookPickup(bookName, checked) {
+            const s = currentlySelectedStudent;
+            const isDemo = s.id && s.id.includes("DEMO-");
+            
+            s.deliveries[bookName] = {
+                status: checked ? "Collected" : "Pending Pickup",
+                date: checked ? new Date().toLocaleDateString('en-GB') : ""
+            };
+
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            logLocalActivity("UPDATE", `${checked ? 'Handed over' : 'Recalled'} book: ${bookName}`, s.id, s.name);
+
+            if(!isDemo) showSpinner("Updating book delivery ledger tab...");
+
+            try {
+                if(!isDemo && CLOUD_URL !== "") {
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "update", 
+                            student: s,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                refreshHubData();
+                showToast(isDemo ? "Updated local sandbox tracker." : "Textbook Ledger handovers tab updated!", isDemo ? "warning" : "success");
+            } catch (err) {
+                console.warn("Cloud offline.", err);
+                refreshHubData();
+                showToast("Offline mode. Local cache update succeeded.", "warning");
+            } finally { hideSpinner(); }
+        }
+
+        function populateConcoursSelections() {
+            const s = currentlySelectedStudent;
+            const select = document.getElementById('concoursSelect');
+            select.innerHTML = "";
+
+            let applicableConcours = [];
+            if (s.tracks.includes("Health Sciences")) applicableConcours = [...applicableConcours, ...concoursData["Health Sciences"]];
+            if (s.tracks.includes("Engineering")) applicableConcours = [...applicableConcours, ...concoursData["Engineering"]];
+            
+            applicableConcours = [...new Set(applicableConcours)];
+            applicableConcours.forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name; opt.textContent = name;
+                select.appendChild(opt);
+            });
+        }
+
+        function calculateConcoursFormTotal() {
+            const baseFee = parseInt(document.getElementById('concoursBaseFee').value) || 0;
+            const bankVal = document.getElementById('concoursCheckBank').checked ? (parseInt(document.getElementById('concoursBankFee').value) || 0) : 0;
+            const photoVal = document.getElementById('concoursCheckPhoto').checked ? (parseInt(document.getElementById('concoursPhotoFee').value) || 0) : 0;
+            const medVal = document.getElementById('concoursCheckMed').checked ? (parseInt(document.getElementById('concoursMedFee').value) || 0) : 0;
+            const certVal = document.getElementById('concoursCheckCert').checked ? (parseInt(document.getElementById('concoursCertFee').value) || 0) : 0;
+            const onlineVal = document.getElementById('concoursCheckOnline').checked ? (parseInt(document.getElementById('concoursOnlineFee').value) || 0) : 0;
+
+            const total = baseFee + bankVal + photoVal + medVal + certVal + onlineVal;
+            document.getElementById('concoursLiveFormTotal').textContent = `${total.toLocaleString()} F CFA`;
+
+            return { baseFee, bankFee: bankVal, photoFee: photoVal, medFee: medVal, certFee: certVal, onlineFee: onlineVal, totalBilled: total };
+        }
+
+        async function handleAddConcours(e) {
+            e.preventDefault();
+            const s = currentlySelectedStudent;
+            if (!s) return;
+            const isDemo = s.id && s.id.includes("DEMO-");
+
+            const fees = calculateConcoursFormTotal();
+            
+            let checklistStr = document.getElementById('concoursCertDocs').value.trim();
+            const optNonConviction = document.getElementById('concoursCheckNonConviction').checked;
+            if (optNonConviction) {
+                checklistStr += " (Optional Certificate of Non-Conviction Attached)";
+            }
+
+            const newConcoursObj = {
+                id: "CNC-" + Date.now().toString().slice(-4),
+                name: document.getElementById('concoursSelect').value,
+                baseFee: fees.baseFee, bankFee: fees.bankFee, photoFee: fees.photoFee,
+                medFee: fees.medFee, certFee: fees.certFee, onlineFee: fees.onlineFee, totalBilled: fees.totalBilled,
+                certDocs: checklistStr,
+                status: "File Incomplete", dateAdded: new Date().toLocaleDateString('en-GB')
+            };
+
+            if (!s.concours) s.concours = [];
+            s.concours.push(newConcoursObj);
+            s.balance = (s.breakdown.grossTotal + getStudentConcoursTotalBilled(s)) - s.totalPaid;
+
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            logLocalActivity("UPDATE", `Enrolled into competitive exam: ${newConcoursObj.name}`, s.id, s.name);
+
+            if(!isDemo) showSpinner("Syncing Concours assignment to spreadsheet...");
+
+            try {
+                if(!isDemo && CLOUD_URL !== "") {
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "update", 
+                            student: s,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                document.getElementById('concoursForm').reset();
+                document.getElementById('concoursCheckNonConviction').checked = false;
+                refreshHubData();
+                showToast(isDemo ? "Demo Concours Assigned." : "Assigned competitive exam folder updated in cloud!", isDemo ? "warning" : "success");
+            } catch (err) {
+                console.warn("Offline environment. Saved to mirror cache.", err);
+                document.getElementById('concoursForm').reset();
+                document.getElementById('concoursCheckNonConviction').checked = false;
+                refreshHubData();
+                showToast("Offline mode. Concours loaded locally.", "warning");
+            } finally { hideSpinner(); }
+        }
+
+        function renderConcoursLedgerList() {
+            const s = currentlySelectedStudent;
+            const container = document.getElementById('hubConcoursList');
+            container.innerHTML = "";
+
+            if (!s.concours || s.concours.length === 0) {
+                container.innerHTML = `<p class="text-xs text-gray-400 italic text-center py-6">No competitive exams (concours) assigned to this student ledger.</p>`;
+                return;
+            }
+
+            s.concours.forEach((c, index) => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-2xl border border-purple-100 shadow-sm space-y-3 relative";
+                
+                card.innerHTML = `
+                    <button onclick="triggerRemoveConcours(${index})" class="absolute top-3.5 right-3.5 text-rose-500 hover:text-rose-700 text-xs font-bold font-mono transition cursor-pointer" title="Delete Concours Booking">✕ Remove</button>
+                    
+                    <div class="space-y-1">
+                        <span class="px-2.5 py-0.5 text-[9px] font-extrabold bg-purple-100 text-purple-800 rounded-md border border-purple-200">CODE: ${c.id}</span>
+                        <h4 class="font-extrabold text-sm text-gray-950 leading-snug pr-14">${c.name}</h4>
+                        <p class="text-[10px] text-gray-400 font-medium">Allocated on ${c.dateAdded}</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 text-[11px] bg-purple-50/50 p-3 rounded-xl border border-purple-100/50 font-medium text-gray-600">
+                        <div class="space-y-1">
+                            <p>Base Registration: <strong class="font-mono text-gray-800 font-bold">${c.baseFee.toLocaleString()} F</strong></p>
+                            <p>Document Certifications: <strong class="font-mono text-gray-800 font-bold">${c.certFee.toLocaleString()} F</strong></p>
+                            <p>Online Processing: <strong class="font-mono text-gray-800 font-bold">${c.onlineFee.toLocaleString()} F</strong></p>
+                        </div>
+                        <div class="space-y-1">
+                            <p>Concours Bank Fee: <strong class="font-mono text-gray-800 font-bold">${c.bankFee.toLocaleString()} F</strong></p>
+                            <p>Passport Photos: <strong class="font-mono text-gray-800 font-bold">${c.photoFee.toLocaleString()} F</strong></p>
+                            <p>Medical Certificates: <strong class="font-mono text-gray-800 font-bold">${c.medFee.toLocaleString()} F</strong></p>
+                        </div>
+                    </div>
+
+                    <div class="text-[11px] space-y-1">
+                        <p class="font-bold text-gray-700">📋 Document Submission & Verification Notes:</p>
+                        <p class="text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100 leading-relaxed italic font-mono text-[10px]">${c.certDocs || "None noted"}</p>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row justify-between items-center gap-3 pt-3 border-t border-gray-100">
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <span class="text-xs font-bold text-gray-700 whitespace-nowrap">File State:</span>
+                            <select onchange="updateConcoursStatus(${index}, this.value)" class="px-3 py-1.5 border border-gray-200 rounded-xl bg-white text-xs font-semibold w-full sm:w-48 focus:ring-2 focus:ring-purple-500/20">
+                                <option value="File Incomplete" ${c.status === "File Incomplete" ? "selected" : ""}>📁 File Incomplete</option>
+                                <option value="Ready for Certification" ${c.status === "Ready for Certification" ? "selected" : ""}>📂 Ready for Cert</option>
+                                <option value="Paid at Bank" ${c.status === "Paid at Bank" ? "selected" : ""}>🏦 Paid at Bank</option>
+                                <option value="Processed Online" ${c.status === "Processed Online" ? "selected" : ""}>🌐 Processed Online</option>
+                                <option value="Registered Successfully" ${c.status === "Registered Successfully" ? "selected" : ""}>🟢 Registered Successfully</option>
+                            </select>
+                        </div>
+                        
+                        <div class="flex gap-2 w-full sm:w-auto justify-between sm:justify-end items-center">
+                            <button onclick="printSingleConcoursReceipt(${index})" class="bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold py-1.5 px-3 rounded-xl text-xs border border-purple-200 transition flex items-center gap-1 cursor-pointer">
+                                🖨️ Slips
+                            </button>
+                            <span class="text-xs font-black text-purple-800 font-mono">Billed: ${c.totalBilled.toLocaleString()} F</span>
+                        </div>
+                    </div>
+                `;
+                
+                container.appendChild(card);
+            });
+        }
+
+        async function updateConcoursStatus(concoursIndex, newStatus) {
+            const s = currentlySelectedStudent;
+            const isDemo = s.id && s.id.includes("DEMO-");
+            s.concours[concoursIndex].status = newStatus;
+
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            logLocalActivity("UPDATE", `Changed exam status of ${s.concours[concoursIndex].name} to: ${newStatus}`, s.id, s.name);
+
+            if(!isDemo) showSpinner("Syncing Concours file status updates...");
+
+            try {
+                if(!isDemo && CLOUD_URL !== "") {
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "update", 
+                            student: s,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                refreshHubData();
+                showToast(isDemo ? "Demo Concours updated locally." : "Concours file status progress synchronized!", isDemo ? "warning" : "success");
+            } catch (err) {
+                console.warn("Offline", err);
+                refreshHubData();
+                showToast("Offline. Saved concours status locally.", "warning");
+            } finally { hideSpinner(); }
+        }
+
+        function triggerRemoveConcours(index) {
+            askConfirmation("Remove Concours?", "This will permanently delete this competitive exam registry from the student ledger and subtract its billing values.", () => removeConcours(index));
+        }
+
+        async function removeConcours(concoursIndex) {
+            const s = currentlySelectedStudent;
+            const isDemo = s.id && s.id.includes("DEMO-");
+            const removedName = s.concours[concoursIndex].name;
+            s.concours.splice(concoursIndex, 1);
+            s.balance = (s.breakdown.grossTotal + getStudentConcoursTotalBilled(s)) - s.totalPaid;
+
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            logLocalActivity("UPDATE", `Deregistered from exam: ${removedName}`, s.id, s.name);
+
+            if(!isDemo) showSpinner("Removing Concours assignment...");
+
+            try {
+                if(!isDemo && CLOUD_URL !== ""){
+                    await fetch(CLOUD_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ 
+                            action: "update", 
+                            student: s,
+                            loggedBy: currentUser ? currentUser.fullName : "Unknown Staff"
+                        })
+                    });
+                }
+                refreshHubData();
+                showToast(isDemo ? "Removed from sandbox memory." : "Concours folder deleted from spreadsheet.", isDemo ? "warning" : "success");
+            } catch (err) {
+                console.warn("Offline error during deletion.", err);
+                refreshHubData();
+                showToast("Offline. Deleted from local cache memory.", "warning");
+            } finally { hideSpinner(); }
+        }
+
+        function printSingleConcoursReceipt(concoursIndex) {
+            const s = currentlySelectedStudent;
+            const c = s.concours[concoursIndex];
+
+            document.getElementById('rcptId').textContent = `${c.id}-RCPT`;
+            document.getElementById('rcptDate').textContent = c.dateAdded;
+            document.getElementById('rcptName').textContent = s.name;
+            document.getElementById('rcptPhone').textContent = s.phone;
+            document.getElementById('rcptDept').textContent = `${s.tracks} | Res: ${s.location}`;
+            document.getElementById('rcptSession').textContent = `Academic Session: ${s.academicYear || activeAcademicYear}`;
+
+            const itemsContainer = document.getElementById('rcptItems');
+            itemsContainer.innerHTML = "";
+
+            const appendLine = (label, desc) => {
+                let div = document.createElement('div');
+                div.className = "flex justify-between border-b border-gray-100 py-1.5";
+                div.innerHTML = `<span>${label}</span><span class="text-gray-600 font-bold max-w-[200px] text-right">${desc}</span>`;
+                itemsContainer.appendChild(div);
+            };
+
+            appendLine("COMPETITIVE EXAM REGISTRY", c.name);
+            appendLine("Base Registration Fee Collected", `${c.baseFee.toLocaleString()} F`);
+            appendLine("Concours Bank Payment Fee", `${c.bankFee.toLocaleString()} F`);
+            appendLine("Document Certification Fee", `${c.certFee.toLocaleString()} F`);
+            appendLine("Passport Photos Fee", `${c.photoFee.toLocaleString()} F`);
+            appendLine("Medical Certificate Charge", `${c.medFee.toLocaleString()} F`);
+            appendLine("Online Portal Processing Fee", `${c.onlineFee.toLocaleString()} F`);
+            appendLine("Required Checklist", c.certDocs || "N/A");
+            appendLine("File Workflow Status", c.status);
+
+            document.getElementById('rcptTotal').textContent = `${c.totalBilled.toLocaleString()} F CFA`;
+            document.getElementById('receiptModal').classList.remove('hidden');
+        }
+
+        function printLedgerCard() {
+            const s = currentlySelectedStudent;
+            if (!s) return;
+
+            const concoursAggregateSum = getStudentConcoursTotalBilled(s);
+            const absoluteSum = s.breakdown.grossTotal + concoursAggregateSum;
+
+            let printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                <head>
+                    <title>Student Account Card Statement</title>
+                    <style>
+                        body { font-family: sans-serif; padding: 40px; color: #333; }
+                        h1 { color: #1d4ed8; border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+                        th { background-color: #f3f4f6; }
+                        .summary { margin-top: 30px; display: flex; justify-content: space-between; font-weight: bold; background: #f9fafb; padding: 15px; border: 1px solid #e5e7eb; }
+                        .concours-card { margin-top: 20px; border: 1px solid #c084fc; border-radius: 8px; padding: 15px; background: #faf5ff; }
+                    </style>
+                </head>
+                <body onload="window.print()">
+                    <h1>STUDENT ACCOUNT CARD STATEMENT</h1>
+                    <p><strong>Student Name:</strong> ${s.name}</p>
+                    <p><strong>Phone Number:</strong> ${s.phone}</p>
+                    <p><strong>Resident Location:</strong> ${s.location || 'Unrecorded'}</p>
+                    <p><strong>Academic Session:</strong> ${s.academicYear || '2025/2026'}</p>
+                    <p><strong>Special Campaign Status:</strong> ${s.campaign || 'Standard'}</p>
+                    <p><strong>Tracks Registered:</strong> ${s.tracks}</p>
+                    <p><strong>Enrollment Date:</strong> ${s.date}</p>
+
+                    <h2>Registered Concours Competitive Exams Booking</h2>
+                    ${s.concours && s.concours.length > 0 ? s.concours.map(c => `
+                        <div class="concours-card">
+                            <h3>Code: ${c.id} - ${c.name}</h3>
+                            <p><strong>Billed Total:</strong> ${c.totalBilled.toLocaleString()} F CFA</p>
+                            <p><strong>Document Notes:</strong> ${c.certDocs || "None noted"}</p>
+                            <p><strong>Processing Status:</strong> ${c.status}</p>
+                        </div>
+                    `).join('') : '<p>No competitive exams assigned to this student ledger.</p>'}
+
+                    <h2>Payment Receipts Breakdown Ledger</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Receipt ID</th>
+                                <th>Date</th>
+                                <th>Purpose / Details</th>
+                                <th>Channel</th>
+                                <th>Amount Paid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${s.payments.map(p => `
+                                <tr>
+                                    <td>${p.receiptId}</td>
+                                    <td>${p.date}</td>
+                                    <td>${p.purpose}</td>
+                                    <td>${p.mode}</td>
+                                    <td>${p.amount.toLocaleString()} F CFA</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+
+                    <div class="summary">
+                        <span>TOTAL GROSS BILLED: ${absoluteSum.toLocaleString()} F</span>
+                        <span style="color: green;">TOTAL PAID: ${s.totalPaid.toLocaleString()} F</span>
+                        <span style="color: red;">OUTSTANDING DEBT: ${(absoluteSum - s.totalPaid).toLocaleString()} F</span>
+                    </div>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('studentTableBody');
+            const search = document.getElementById('tableSearch').value.toLowerCase();
+            const sessionFilter = document.getElementById('tableYearFilter').value;
+            tbody.innerHTML = "";
+
+            // Dynamic filtration engine support for multi-year tracking
+            let filtered = students.filter(s => {
+                const matchesSearch = (s.name || "").toLowerCase().includes(search) || (s.location || "").toLowerCase().includes(search);
+                const matchesSession = (sessionFilter === "All Sessions") || (s.academicYear === sessionFilter);
+                return matchesSearch && matchesSession;
+            });
+
+            let grossRev = 0, collectedRev = 0, debtRev = 0, booksRev = 0, concoursRevSum = 0;
+
+            // Recalculate KPIs based strictly on current year context
+            students.filter(s => !(s.id && s.id.includes("DEMO-"))).forEach(s => {
+                const matchesSession = (sessionFilter === "All Sessions") || (s.academicYear === sessionFilter);
+                if (matchesSession) {
+                    const sConcoursBill = getStudentConcoursTotalBilled(s);
+                    const breakdown = s.breakdown || {};
+                    const grossTotal = Number(breakdown.grossTotal) || 0;
+                    const sOverallBill = grossTotal + sConcoursBill;
+
+                    grossRev += sOverallBill;
+                    collectedRev += Number(s.totalPaid) || 0;
+                    debtRev += (sOverallBill - (Number(s.totalPaid) || 0));
+                    booksRev += Number(breakdown.textbookFeeSum) || 0;
+                    concoursRevSum += sConcoursBill;
+                }
+            });
+
+            document.getElementById('kpiTotal').textContent = `${grossRev.toLocaleString()} F`;
+            document.getElementById('kpiCollected').textContent = `${collectedRev.toLocaleString()} F`;
+            document.getElementById('kpiOutstanding').textContent = `${debtRev.toLocaleString()} F`;
+            document.getElementById('kpiBooks').textContent = `${booksRev.toLocaleString()} F`;
+            document.getElementById('kpiConcours').textContent = `${concoursRevSum.toLocaleString()} F`;
+
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-4 text-center text-gray-400 italic">No matching student accounts found for session: ${sessionFilter}</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(s => {
+                let totalBooks = Object.keys(s.deliveries || {}).length;
+                let collectedBooks = Object.values(s.deliveries || {}).filter(item => item.status === "Collected").length;
+                
+                const isAllCollected = collectedBooks === totalBooks && totalBooks > 0;
+                const isDemo = s.id && s.id.includes("DEMO-");
+
+                const concoursCount = s.concours ? s.concours.length : 0;
+                const studentConcoursSum = getStudentConcoursTotalBilled(s);
+                const breakdown = s.breakdown || {};
+                const grossTotal = Number(breakdown.grossTotal) || 0;
+                const absoluteBill = grossTotal + studentConcoursSum;
+                const studentPaid = Number(s.totalPaid) || 0;
+                const studentBalance = absoluteBill - studentPaid;
+
+                let tr = document.createElement('tr');
+                tr.className = `hover:bg-gray-50/50 transition duration-100 ${isDemo ? 'bg-amber-50/40' : ''}`;
+                tr.innerHTML = `
+                    <td class="p-4 font-mono font-bold text-xs ${isDemo ? 'text-amber-700' : 'text-blue-700'}">${s.id || "STU-UNKNOWN"}</td>
+                    <td class="p-4">
+                        <p class="font-bold text-gray-900">${s.name || "No Name"} ${isDemo ? '<span class="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded ml-1">DEMO</span>' : ''}</p>
+                        <p class="text-xs text-gray-400 font-mono font-medium mt-0.5">📞 ${s.phone || "No Phone"} | 📍 ${s.location || "No Location"}</p>
+                        <p class="text-[10px] text-gray-400 mt-1 font-semibold uppercase tracking-wider">Registered: ${s.date || "N/A"} | Year: ${s.academicYear || "2025/2026"}</p>
+                    </td>
+                    <td class="p-4">
+                        <span class="px-2.5 py-1 text-[10px] font-bold bg-blue-50 border border-blue-100 text-blue-800 rounded-lg inline-block mb-1.5 uppercase tracking-wide">${s.tracks || "No Tracks"}</span>
+                        <p class="text-[10px] text-gray-400 truncate max-w-[180px]" title="${(s.items || []).join(', ')}">${(s.items || []).join(', ')}</p>
+                    </td>
+                    <td class="p-4 text-xs space-y-1 font-semibold text-gray-600">
+                        <p>Total Due: <span class="font-mono font-bold text-gray-900">${absoluteBill.toLocaleString()} F</span></p>
+                        <p class="text-emerald-600">Collected: <span class="font-mono font-bold">${studentPaid.toLocaleString()} F</span></p>
+                        <p class="${studentBalance > 0 ? 'text-rose-500' : 'text-emerald-700'} font-bold">
+                            Outstanding: <span class="font-mono">${studentBalance.toLocaleString()} F</span>
+                        </p>
+                    </td>
+                    <td class="p-4 space-y-1.5">
+                        <div class="block">
+                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-lg ${isAllCollected ? 'bg-emerald-50 border border-emerald-100 text-emerald-800' : 'bg-amber-50 border border-amber-100 text-amber-800'}">
+                                📦 ${collectedBooks} / ${totalBooks} Books
+                            </span>
+                        </div>
+                        ${concoursCount > 0 ? `
+                        <div class="block">
+                            <span class="px-2.5 py-1 text-[10px] font-extrabold rounded-lg bg-purple-50 border border-purple-100 text-purple-800">
+                                📝 ${concoursCount} Concours Active
+                            </span>
+                        </div>` : ''}
+                    </td>
+                    <td class="p-4 text-center">
+                        <button onclick="openAccountHub('${s.id}')" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded-xl text-xs transition shadow-sm cursor-pointer whitespace-nowrap">
+                            💼 Manage
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function exportToExcel() {
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Registry ID,Enrollment Date,Student Name,Phone Number,Resident Location,Academic Session,Campaign Scheme,Tracks Assigned,Total Due (FCFA),Total Paid (FCFA),Remaining Balance (FCFA),Concours Registrations Count\n";
+
+            students.filter(s => !(s.id && s.id.includes("DEMO-"))).forEach(s => {
+                const breakdown = s.breakdown || {};
+                const grossTotal = Number(breakdown.grossTotal) || 0;
+                const finalBillSum = grossTotal + getStudentConcoursTotalBilled(s);
+                const finalPaid = Number(s.totalPaid) || 0;
+                const finalDebt = finalBillSum - finalPaid;
+                const finalConcoursCount = s.concours ? s.concours.length : 0;
+
+                let row = [
+                    s.id, s.date,
+                    `"${(s.name || "").replace(/"/g, '""')}"`,
+                    s.phone,
+                    `"${(s.location || "").replace(/"/g, '""')}"`,
+                    s.academicYear || "2025/2026",
+                    s.campaign || "Standard",
+                    `"${(s.tracks || "").replace(/"/g, '""')}"`,
+                    finalBillSum, finalPaid, finalDebt, finalConcoursCount
+                ].join(",");
+                csvContent += row + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `Medoc_Ledger_Export_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            showToast("Tuition ledger exported as CSV file!", "success");
+        }
+
+        function displayLogo() {
+            const savedLogo = localStorage.getItem('school_logo');
+            if (savedLogo) {
+                document.getElementById('previewLogo').src = savedLogo;
+                document.getElementById('previewLogoContainer').classList.remove('hidden');
+                document.getElementById('receiptLogo').src = savedLogo;
+                document.getElementById('receiptLogoContainer').classList.remove('hidden');
+            }
+        }
+
+        function handleLogoUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onloadend = function() {
+                localStorage.setItem('school_logo', reader.result);
+                displayLogo();
+                showToast("Institutional branding logo saved successfully!");
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function switchTab(tabName) {
+            const regView = document.getElementById('view-register');
+            const dashView = document.getElementById('view-dashboard');
+            const tabRegBtn = document.getElementById('tab-register');
+            const tabDashBtn = document.getElementById('tab-dashboard');
+
+            if (tabName === 'register') {
+                regView.classList.remove('hidden');
+                dashView.classList.add('hidden');
+                tabRegBtn.className = "px-4 py-2 rounded-lg font-semibold bg-white text-blue-700 transition duration-200 shadow-sm text-sm";
+                tabDashBtn.className = "px-4 py-2 rounded-lg font-semibold hover:bg-blue-600/50 text-white transition duration-200 text-sm";
+            } else {
+                regView.classList.add('hidden');
+                dashView.classList.remove('hidden');
+                tabRegBtn.className = "px-4 py-2 rounded-lg font-semibold hover:bg-blue-600/50 text-white transition duration-200 text-sm";
+                tabDashBtn.className = "px-4 py-2 rounded-lg font-semibold bg-white text-blue-700 transition duration-200 shadow-sm text-sm";
+                fetchCloudData();
+            }
+        }
+
+        function updateFormContext() {
+            const primaryDept = document.querySelector('input[name="primaryDept"]:checked').value;
+            const primaryWbSelect = document.getElementById('primaryWorkbook');
+            
+            primaryWbSelect.innerHTML = "";
+            booksData[primaryDept].workbooks.forEach(wb => {
+                let opt = document.createElement('option');
+                opt.value = wb;
+                opt.textContent = wb;
+                primaryWbSelect.appendChild(opt);
+            });
+
+            const extraContainer = document.getElementById('extraWorkbooksContainer');
+            extraContainer.innerHTML = "";
+            let allWorkbooks = [...booksData["Health Sciences"].workbooks, ...booksData["Engineering"].workbooks];
+            
+            allWorkbooks.forEach((wb, index) => {
+                let div = document.createElement('div');
+                div.className = "flex items-center space-x-2.5 p-3 bg-white border border-gray-100 rounded-xl shadow-sm text-xs select-none transition hover:border-blue-200";
+                div.innerHTML = `
+                    <input type="checkbox" id="extraWb_${index}" value="${wb}" onchange="calculateLiveTotal()" class="h-4.5 w-4.5 text-blue-600 rounded focus:ring-blue-500/20">
+                    <label for="extraWb_${index}" class="cursor-pointer font-semibold text-gray-700">${wb}</label>
+                `;
+                extraContainer.appendChild(div);
+            });
+            calculateLiveTotal();
+        }
+
+        function getStudentConcoursTotalBilled(studentObj) {
+            if (!studentObj || !studentObj.concours || !Array.isArray(studentObj.concours)) return 0;
+            return studentObj.concours.reduce((acc, c) => acc + (Number(c.totalBilled) || 0), 0);
+        }
+
+        function applyCampaignPricing() {
+            const campaign = document.getElementById('specialCampaign').value;
+            const discountArea = document.getElementById('customDiscountArea');
+            if (campaign === "Custom Discount") {
+                discountArea.classList.remove('hidden');
+            } else {
+                discountArea.classList.add('hidden');
+            }
+            calculateLiveTotal();
+        }
+
+        function calculateLiveTotal() {
+            const realStudents = students.filter(s => !(s.id && s.id.includes("DEMO-")) && (s.academicYear === activeAcademicYear));
+            const totalStudentsCurrently = realStudents.length;
+            const currentTuitionPrice = (totalStudentsCurrently < EARLY_BIRD_LIMIT) ? 30000 : 35000;
+            
+            document.getElementById('earlyBirdStatus').textContent = `${totalStudentsCurrently} / ${EARLY_BIRD_LIMIT} Slots in [${activeAcademicYear}]`;
+            document.getElementById('liveTuitionLabel').textContent = (totalStudentsCurrently < EARLY_BIRD_LIMIT) ? "Early-Bird Rate" : "Standard Rate";
+
+            const campaign = document.getElementById('specialCampaign').value;
+            let tuitionDiscount = 0;
+            let booksDiscounted = false; 
+            let fullScholarship = false;
+
+            if (campaign === "Olympiad Outstanding") {
+                booksDiscounted = true;
+                document.getElementById('campaignIndicatorText').textContent = "✓ 🏆 Olympiad Outstanding applied: Checked Textbooks & Extra Workbooks cost 0 F CFA!";
+            } else if (campaign === "Opening Activity Promo") {
+                tuitionDiscount = 10000;
+                document.getElementById('campaignIndicatorText').textContent = "✓ 🎉 Opening Activity Promo applied: 10,000 F CFA Tuition Discount!";
+            } else if (campaign === "Full Scholarship") {
+                fullScholarship = true;
+                document.getElementById('campaignIndicatorText').textContent = "✓ 🎓 Full Scholarship applied: 100% Tuition, Textbooks, and Workbooks set to 0 F CFA!";
+            } else if (campaign === "Custom Discount") {
+                tuitionDiscount = parseInt(document.getElementById('customDiscountVal').value) || 0;
+                document.getElementById('campaignIndicatorText').textContent = `✓ Custom Discount applied: ${tuitionDiscount.toLocaleString()} F CFA Tuition Discount.`;
+            } else {
+                document.getElementById('campaignIndicatorText').textContent = "✓ Standard pricing rules applied.";
+            }
+
+            const regFee = 5000; 
+            let tuitionFee = fullScholarship ? 0 : Math.max(0, currentTuitionPrice - tuitionDiscount); 
+
+            let textbookFeeSum = 0;
+            let booksSelected = [];
+
+            if (document.getElementById('bookMed').checked) {
+                let price = parseInt(document.getElementById('priceMed').value) || 0;
+                if (booksDiscounted || fullScholarship) price = 0;
+                textbookFeeSum += price;
+                booksSelected.push({ id: 'allocBookMed', name: 'Medical School Secrets Textbook' + (booksDiscounted || fullScholarship ? ' (Waiver)' : ''), price: price });
+            }
+            if (document.getElementById('bookEng').checked) {
+                let price = parseInt(document.getElementById('priceEng').value) || 0;
+                if (booksDiscounted || fullScholarship) price = 0;
+                textbookFeeSum += price;
+                booksSelected.push({ id: 'allocBookEng', name: 'Engineering Textbook' + (booksDiscounted || fullScholarship ? ' (Waiver)' : ''), price: price });
+            }
+
+            const extraContainer = document.getElementById('extraWorkbooksContainer');
+            const checkedBoxes = extraContainer.querySelectorAll('input[type="checkbox"]:checked');
+            let extraWbFeeSum = 0;
+            
+            checkedBoxes.forEach((box, i) => {
+                let price = 5000;
+                if (booksDiscounted || fullScholarship) price = 0;
+                extraWbFeeSum += price;
+                booksSelected.push({ id: 'allocExtraWb_' + i, name: box.value + (booksDiscounted || fullScholarship ? ' (Waiver)' : ''), price: price });
+            });
+
+            let grossTotal = regFee + tuitionFee + textbookFeeSum + extraWbFeeSum;
+
+            document.getElementById('liveReg').textContent = `${regFee.toLocaleString()} F CFA`;
+            document.getElementById('liveTuition').textContent = `${tuitionFee.toLocaleString()} F CFA`;
+            document.getElementById('liveTextbooks').textContent = `${textbookFeeSum.toLocaleString()} F CFA`;
+            document.getElementById('liveWorkbooks').textContent = `${extraWbFeeSum.toLocaleString()} F CFA`;
+            document.getElementById('liveTotal').textContent = `${grossTotal.toLocaleString()} F CFA`;
+
+            updatePaymentAllocationUI(booksSelected);
+            return { regFee, tuitionFee, textbookFeeSum, extraWbFeeSum, grossTotal, primaryFreeWb: document.getElementById('primaryWorkbook').value };
+        }
+
+        function updatePaymentAllocationUI(selectedItems) {
+            const container = document.getElementById('allocBooksContainer');
+            if(!container) return;
+            
+            const currentStates = {};
+            container.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                currentStates[cb.id] = cb.checked;
+            });
+            
+            container.innerHTML = "";
+            if(selectedItems.length === 0) {
+                container.classList.add('hidden');
+            } else {
+                container.classList.remove('hidden');
+                selectedItems.forEach(item => {
+                    let div = document.createElement('label');
+                    div.className = "flex items-center justify-between cursor-pointer select-none py-1";
+                    let checkedStr = currentStates[item.id] ? "checked" : "";
+                    
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-2.5">
+                            <input type="checkbox" id="${item.id}" data-name="${item.name}" data-price="${item.price}" onchange="updateTotalPaid()" class="h-4 w-4 text-blue-600 rounded focus:ring-blue-500/20 alloc-book-cb" ${checkedStr}>
+                            <span class="text-xs font-semibold text-gray-700 w-48 truncate sm:w-auto" title="${item.name}">${item.name}</span>
+                        </div>
+                        <span class="text-xs font-mono text-gray-500">${item.price.toLocaleString()} F</span>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+            updateTotalPaid();
+        }
+
+        function toggleTuitionAlloc() {
+            updateTotalPaid();
+        }
+
+        function updateTotalPaid() {
+            let total = 5000; 
+            const tuitionCheck = document.getElementById('allocTuitionCheck');
+            const tuitionAmt = document.getElementById('allocTuitionAmt');
+            
+            if(tuitionCheck && tuitionCheck.checked) {
+                tuitionAmt.disabled = false;
+                tuitionAmt.classList.remove('bg-gray-50');
+                tuitionAmt.classList.add('bg-white');
+                total += (parseInt(tuitionAmt.value) || 0);
+            } else if (tuitionAmt) {
+                tuitionAmt.disabled = true;
+                tuitionAmt.classList.add('bg-gray-50');
+                tuitionAmt.classList.remove('bg-white');
+                tuitionAmt.value = "";
+            }
+
+            document.querySelectorAll('.alloc-book-cb:checked').forEach(cb => {
+                total += parseInt(cb.getAttribute('data-price')) || 0;
+            });
+
+            const totalBillText = document.getElementById('liveTotal').innerText;
+            const grossTotal = parseInt(totalBillText.replace(/,/g, '').replace(' F CFA', '')) || 0;
+
+            if (total > grossTotal) total = grossTotal; 
+
+            document.getElementById('computedTotalPaid').textContent = `${total.toLocaleString()} F CFA`;
+            document.getElementById('amountPaidToday').value = total;
+            document.getElementById('livePayingToday').textContent = `${total.toLocaleString()} F CFA`;
+            const debt = Math.max(0, grossTotal - total);
+            document.getElementById('liveRemainingDebt').textContent = `${debt.toLocaleString()} F CFA`;
+
+            const trackerArea = document.getElementById('paymentTrackerArea');
+            if (debt === 0) {
+                trackerArea.classList.add('bg-emerald-950/40', 'border-emerald-800');
+                trackerArea.classList.remove('bg-gray-950/40', 'border-gray-800');
+            } else {
+                trackerArea.classList.add('bg-gray-950/40', 'border-gray-800');
+                trackerArea.classList.remove('bg-emerald-950/40', 'border-emerald-800');
+            }
+        }
+
+        function showSpinner(text) {
+            document.getElementById('syncText').textContent = text;
+            document.getElementById('syncIndicator').classList.remove('hidden');
+        }
+        function hideSpinner() { document.getElementById('syncIndicator').classList.add('hidden'); }
+
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border text-xs font-semibold tracking-wide transition-all duration-300 transform translate-y-2 opacity-0`;
+            
+            if (type === "success") {
+                toast.className += " bg-emerald-50 text-emerald-800 border-emerald-200";
+                toast.innerHTML = `<span>🟢</span> <span>${message}</span>`;
+            } else if (type === "warning") {
+                toast.className += " bg-amber-50 text-amber-800 border-amber-200";
+                toast.innerHTML = `<span>⚡</span> <span>${message}</span>`;
+            } else {
+                toast.className += " bg-rose-50 text-rose-800 border-rose-200";
+                toast.innerHTML = `<span>🔴</span> <span>${message}</span>`;
+            }
+
+            container.appendChild(toast);
+            setTimeout(() => { toast.classList.remove('translate-y-2', 'opacity-0'); }, 50);
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function askConfirmation(title, desc, onConfirm) {
+            const modal = document.getElementById('customConfirmModal');
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmDesc').textContent = desc;
+            modal.classList.remove('hidden');
+
+            const close = () => modal.classList.add('hidden');
+            document.getElementById('confirmCancelBtn').onclick = close;
+            document.getElementById('confirmProceedBtn').onclick = () => { close(); onConfirm(); };
+        }
+
+        function showSandboxBanner() { document.getElementById('sandboxBanner').classList.remove('hidden'); }
+
+        function clearDemoData() {
+            const initialCount = students.length;
+            students = students.filter(s => !(s.id && s.id.includes("DEMO-")));
+            const clearedCount = initialCount - students.length;
+            
+            localStorage.setItem('medoc_students_local', JSON.stringify(students));
+            localStorage.setItem('demo_cleared', 'true');
+            
+            renderTable();
+            updateFormContext();
+            
+            if (clearedCount > 0) {
+                showToast(`Successfully cleared ${clearedCount} demo records from sandbox memory.`, "success");
+            } else {
+                showToast("Sandbox memory is already clean.", "warning");
+            }
+        }
+
+        function seedDemoData() {
+            students = [
+                {
+                    id: "DEMO-9031", date: "15/09/2025",
+                    name: "Kenan Stark (Past Session Demo)", phone: "+237 677 889 900", location: "Bastos, Yaoundé", tracks: "Health Sciences",
+                    breakdown: { grossTotal: 35000, regFee: 5000, tuitionFee: 30000, textbookFeeSum: 0, extraWbFeeSum: 0, primaryFreeWb: "Medicine workbook" },
+                    totalPaid: 35000, balance: 0, campaign: "Standard", academicYear: "2025/2026",
+                    payments: [{ receiptId: "RCPT-819122", date: "15/09/2025", amount: 35000, purpose: "Registration (5,000) + Full Tuition", mode: "Cash" }],
+                    deliveries: { "Medicine workbook": { status: "Collected", date: "15/09/2025" } },
+                    items: ["Medicine workbook (Free Primary Choice)"],
+                    concours: []
+                },
+                {
+                    id: "DEMO-1829", date: new Date().toLocaleDateString('en-GB'),
+                    name: "Aurelie Fomekong (Active Session Demo)", phone: "+237 699 123 456", location: "Bonamoussadi, Douala", tracks: "Engineering",
+                    breakdown: { grossTotal: 40000, regFee: 5000, tuitionFee: 30000, textbookFeeSum: 5000, extraWbFeeSum: 0, primaryFreeWb: "Engineering workbook" },
+                    totalPaid: 15000, balance: 25000, campaign: "Opening Activity Promo", academicYear: "2026/2027",
+                    payments: [{ receiptId: "RCPT-982001", date: new Date().toLocaleDateString('en-GB'), amount: 15000, purpose: "Registration (5,000) + Tuition Deposit", mode: "Mobile Money" }],
+                    deliveries: { "Engineering workbook": { status: "Pending Pickup", date: "" }, "Engineering textbook": { status: "Pending Pickup", date: "" } },
+                    items: ["Engineering workbook (Free Primary Choice)", "Engineering textbook (5,000 F CFA)"],
+                    concours: [{ id: "CNC-3849", name: "National Higher Polytechnic Institute - Bamenda", baseFee: 20000, bankFee: 1000, photoFee: 1000, medFee: 1500, certFee: 2000, onlineFee: 2000, totalBilled: 27500, certDocs: "GCE Advanced Level Slip, Birth Certificate", status: "Ready for Certification", dateAdded: new Date().toLocaleDateString('en-GB') }]
+                }
+            ];
+            showSandboxBanner();
+        }
+
+        function loadMockStudent() {
+            document.getElementById('studentName').value = "Aurelie Fomekong";
+            document.getElementById('studentPhone').value = "+237 699 123 456";
+            document.getElementById('studentLocation').value = "Bonamoussadi";
+            document.querySelector('input[name="primaryDept"][value="Health Sciences"]').checked = true;
+            document.getElementById('dualEnrollment').checked = false;
+            document.getElementById('specialCampaign').value = "Opening Activity Promo";
+            applyCampaignPricing();
+            
+            document.getElementById('bookMed').checked = true;
+            updateFormContext();
+            
+            document.getElementById('paymentMode').value = "Mobile Money";
+            
+            const tuitionCheck = document.getElementById('allocTuitionCheck');
+            if(tuitionCheck) {
+                tuitionCheck.checked = true;
+                toggleTuitionAlloc();
+                document.getElementById('allocTuitionAmt').value = 10000;
+            }
+            
+            const firstBookAlloc = document.querySelector('.alloc-book-cb');
+            if (firstBookAlloc) firstBookAlloc.checked = true;
+            
+            updateTotalPaid();
+            document.getElementById('isDemoStudent').value = "true";
+            
+            showToast("Autofilled registration fields with demo info!", "warning");
+        }
+    </script>
+</body>
+</html>
